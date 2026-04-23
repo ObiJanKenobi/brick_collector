@@ -2,8 +2,6 @@ import 'package:brick_collector/common_libs.dart';
 import 'package:brick_lib/model/rebrickable_color.dart';
 import 'package:brick_lib/model/rebrickable_part_category.dart';
 
-import 'collectable_part.dart';
-
 part 'filter_preset.g.dart';
 
 @collection
@@ -18,6 +16,7 @@ class FilterPreset {
 
   List<RebrickablePartCategory>? categories;
   List<RebrickableColor>? colors;
+  String? searchText;
 
   addCategory(RebrickablePartCategory val) {
     categories ??= [];
@@ -25,6 +24,19 @@ class FilterPreset {
       categories?.add(val);
     }
   }
+
+  addColor(RebrickableColor val) {
+    colors ??= [];
+    if (colors?.any((c) => c.id == val.id) == false) {
+      colors?.add(val);
+    }
+  }
+
+  removeColor(int colorId) {
+    colors?.removeWhere((c) => c.id == colorId);
+  }
+
+  bool hasColor(int colorId) => colors?.any((c) => c.id == colorId) ?? false;
 
   // @Enumerated(EnumType.name)
   // PartSort sort = PartSort.nameAsc;

@@ -78,18 +78,15 @@ class PartsLogic {
 
   Future<FilterPreset> savePreset(FilterPreset preset) async {
     await dbLogic.savePreset(preset);
-
     return preset;
+  }
+
+  void notifyPresetsChanged() {
+    _inPresets.add(_presets);
   }
 
   deletePreset(FilterPreset preset) async {
     await dbLogic.deletePreset(preset);
-    _presets.remove(preset);
-    _inPresets.add(_presets);
-  }
-
-  loadParts(FilterPreset preset) async {
-    await rbService.getUserParts();
     _presets.remove(preset);
     _inPresets.add(_presets);
   }

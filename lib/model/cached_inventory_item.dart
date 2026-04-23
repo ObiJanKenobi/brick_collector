@@ -17,6 +17,8 @@ class CachedInventoryItem {
   @Index(composite: [CompositeIndex('colorId')])
   late String partNum;
 
+  String? partName;
+  int? partCategoryId;
   late int colorId;
   String? colorName;
   String? rgb;

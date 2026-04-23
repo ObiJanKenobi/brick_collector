@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _rbTokenKey = 'rb_user_token';
 const _rbUsernameKey = 'rb_username';
 const _cacheSchemaKey = 'inventory_cache_schema_version';
-const _cacheSchemaVersion = 2;
+const _cacheSchemaVersion = 3;
 
 class AppLogic {
   final Logger log = getLogger("AppLogic");

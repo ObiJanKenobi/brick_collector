@@ -6,6 +6,7 @@ import 'package:brick_collector/screens/part_group_screen.dart';
 import 'package:brick_collector/screens/part_summary_screen.dart';
 import 'package:brick_collector/screens/parts_filter_screen.dart';
 import 'package:brick_collector/screens/preset_list_screen.dart';
+import 'package:brick_collector/screens/preset_screen.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/services/group_service.dart';
 import 'package:brick_collector/ui/app_colors.dart';
@@ -33,6 +34,8 @@ class ScreenPaths {
   static String partFilterPage(int id) => '/filter/$id';
 
   static String partFilterEditPage(int id) => '/filter/edit/$id';
+
+  static String presetPage(int id) => '/preset/$id';
 }
 
 class PartRouteData {
@@ -67,6 +70,10 @@ final appRouter = GoRouter(
       final filterId = s.pathParameters["id"];
       final preset = partsLogic.getPresetById(int.parse(filterId!));
       return PartsFilterScreen(preset);
+    }, useFade: true),
+    AppRoute('/preset/:id', (s) {
+      final id = int.parse(s.pathParameters["id"]!);
+      return PresetScreen(id);
     }, useFade: true),
     AppRoute(ScreenPaths.detail, (s) {
       final moc = s.extra! as Moc;

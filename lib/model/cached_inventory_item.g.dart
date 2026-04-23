@@ -38,28 +38,38 @@ const CachedInventoryItemSchema = CollectionSchema(
       name: r'isSpare',
       type: IsarType.bool,
     ),
-    r'partNum': PropertySchema(
+    r'partCategoryId': PropertySchema(
       id: 4,
+      name: r'partCategoryId',
+      type: IsarType.long,
+    ),
+    r'partName': PropertySchema(
+      id: 5,
+      name: r'partName',
+      type: IsarType.string,
+    ),
+    r'partNum': PropertySchema(
+      id: 6,
       name: r'partNum',
       type: IsarType.string,
     ),
     r'quantity': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'quantity',
       type: IsarType.long,
     ),
     r'rgb': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'rgb',
       type: IsarType.string,
     ),
     r'sourceExternalId': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'sourceExternalId',
       type: IsarType.string,
     ),
     r'sourceType': PropertySchema(
-      id: 8,
+      id: 10,
       name: r'sourceType',
       type: IsarType.string,
       enumMap: _CachedInventoryItemsourceTypeEnumValueMap,
@@ -116,6 +126,12 @@ int _cachedInventoryItemEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.partName;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.partNum.length * 3;
   {
     final value = object.rgb;
@@ -138,11 +154,13 @@ void _cachedInventoryItemSerialize(
   writer.writeString(offsets[1], object.colorName);
   writer.writeString(offsets[2], object.imgUrl);
   writer.writeBool(offsets[3], object.isSpare);
-  writer.writeString(offsets[4], object.partNum);
-  writer.writeLong(offsets[5], object.quantity);
-  writer.writeString(offsets[6], object.rgb);
-  writer.writeString(offsets[7], object.sourceExternalId);
-  writer.writeString(offsets[8], object.sourceType.name);
+  writer.writeLong(offsets[4], object.partCategoryId);
+  writer.writeString(offsets[5], object.partName);
+  writer.writeString(offsets[6], object.partNum);
+  writer.writeLong(offsets[7], object.quantity);
+  writer.writeString(offsets[8], object.rgb);
+  writer.writeString(offsets[9], object.sourceExternalId);
+  writer.writeString(offsets[10], object.sourceType.name);
 }
 
 CachedInventoryItem _cachedInventoryItemDeserialize(
@@ -157,12 +175,14 @@ CachedInventoryItem _cachedInventoryItemDeserialize(
   object.id = id;
   object.imgUrl = reader.readStringOrNull(offsets[2]);
   object.isSpare = reader.readBool(offsets[3]);
-  object.partNum = reader.readString(offsets[4]);
-  object.quantity = reader.readLong(offsets[5]);
-  object.rgb = reader.readStringOrNull(offsets[6]);
-  object.sourceExternalId = reader.readString(offsets[7]);
+  object.partCategoryId = reader.readLongOrNull(offsets[4]);
+  object.partName = reader.readStringOrNull(offsets[5]);
+  object.partNum = reader.readString(offsets[6]);
+  object.quantity = reader.readLong(offsets[7]);
+  object.rgb = reader.readStringOrNull(offsets[8]);
+  object.sourceExternalId = reader.readString(offsets[9]);
   object.sourceType = _CachedInventoryItemsourceTypeValueEnumMap[
-          reader.readStringOrNull(offsets[8])] ??
+          reader.readStringOrNull(offsets[10])] ??
       CachedSourceType.set;
   return object;
 }
@@ -183,14 +203,18 @@ P _cachedInventoryItemDeserializeProp<P>(
     case 3:
       return (reader.readBool(offset)) as P;
     case 4:
-      return (reader.readString(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 5:
-      return (reader.readLong(offset)) as P;
-    case 6:
       return (reader.readStringOrNull(offset)) as P;
-    case 7:
+    case 6:
       return (reader.readString(offset)) as P;
+    case 7:
+      return (reader.readLong(offset)) as P;
     case 8:
+      return (reader.readStringOrNull(offset)) as P;
+    case 9:
+      return (reader.readString(offset)) as P;
+    case 10:
       return (_CachedInventoryItemsourceTypeValueEnumMap[
               reader.readStringOrNull(offset)] ??
           CachedSourceType.set) as P;
@@ -871,6 +895,234 @@ extension CachedInventoryItemQueryFilter on QueryBuilder<CachedInventoryItem,
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'isSpare',
         value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partCategoryIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'partCategoryId',
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partCategoryIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'partCategoryId',
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partCategoryIdEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'partCategoryId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partCategoryIdGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'partCategoryId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partCategoryIdLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'partCategoryId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partCategoryIdBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'partCategoryId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'partName',
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'partName',
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'partName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'partName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'partName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'partName',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'partName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'partName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'partName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'partName',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'partName',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterFilterCondition>
+      partNameIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'partName',
+        value: '',
       ));
     });
   }
@@ -1559,6 +1811,34 @@ extension CachedInventoryItemQuerySortBy
   }
 
   QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
+      sortByPartCategoryId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'partCategoryId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
+      sortByPartCategoryIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'partCategoryId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
+      sortByPartName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'partName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
+      sortByPartNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'partName', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
       sortByPartNum() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'partNum', Sort.asc);
@@ -1702,6 +1982,34 @@ extension CachedInventoryItemQuerySortThenBy
   }
 
   QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
+      thenByPartCategoryId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'partCategoryId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
+      thenByPartCategoryIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'partCategoryId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
+      thenByPartName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'partName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
+      thenByPartNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'partName', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QAfterSortBy>
       thenByPartNum() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'partNum', Sort.asc);
@@ -1803,6 +2111,20 @@ extension CachedInventoryItemQueryWhereDistinct
   }
 
   QueryBuilder<CachedInventoryItem, CachedInventoryItem, QDistinct>
+      distinctByPartCategoryId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'partCategoryId');
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QDistinct>
+      distinctByPartName({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'partName', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, CachedInventoryItem, QDistinct>
       distinctByPartNum({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'partNum', caseSensitive: caseSensitive);
@@ -1870,6 +2192,20 @@ extension CachedInventoryItemQueryProperty
   QueryBuilder<CachedInventoryItem, bool, QQueryOperations> isSpareProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isSpare');
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, int?, QQueryOperations>
+      partCategoryIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'partCategoryId');
+    });
+  }
+
+  QueryBuilder<CachedInventoryItem, String?, QQueryOperations>
+      partNameProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'partName');
     });
   }
 

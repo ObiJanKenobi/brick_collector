@@ -38,6 +38,11 @@ const FilterPresetSchema = CollectionSchema(
       id: 3,
       name: r'name',
       type: IsarType.string,
+    ),
+    r'searchText': PropertySchema(
+      id: 4,
+      name: r'searchText',
+      type: IsarType.string,
     )
   },
   estimateSize: _filterPresetEstimateSize,
@@ -98,6 +103,12 @@ int _filterPresetEstimateSize(
     }
   }
   bytesCount += 3 + object.name.length * 3;
+  {
+    final value = object.searchText;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -121,6 +132,7 @@ void _filterPresetSerialize(
   );
   writer.writeString(offsets[2], object.imageUrl);
   writer.writeString(offsets[3], object.name);
+  writer.writeString(offsets[4], object.searchText);
 }
 
 FilterPreset _filterPresetDeserialize(
@@ -146,6 +158,7 @@ FilterPreset _filterPresetDeserialize(
   );
   object.id = id;
   object.imageUrl = reader.readStringOrNull(offsets[2]);
+  object.searchText = reader.readStringOrNull(offsets[4]);
   return object;
 }
 
@@ -174,6 +187,8 @@ P _filterPresetDeserializeProp<P>(
       return (reader.readStringOrNull(offset)) as P;
     case 3:
       return (reader.readString(offset)) as P;
+    case 4:
+      return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -827,6 +842,160 @@ extension FilterPresetQueryFilter
       ));
     });
   }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'searchText',
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'searchText',
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'searchText',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'searchText',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'searchText',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'searchText',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'searchText',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'searchText',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'searchText',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'searchText',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'searchText',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterFilterCondition>
+      searchTextIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'searchText',
+        value: '',
+      ));
+    });
+  }
 }
 
 extension FilterPresetQueryObject
@@ -874,6 +1043,19 @@ extension FilterPresetQuerySortBy
       return query.addSortBy(r'name', Sort.desc);
     });
   }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterSortBy> sortBySearchText() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'searchText', Sort.asc);
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterSortBy>
+      sortBySearchTextDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'searchText', Sort.desc);
+    });
+  }
 }
 
 extension FilterPresetQuerySortThenBy
@@ -913,6 +1095,19 @@ extension FilterPresetQuerySortThenBy
       return query.addSortBy(r'name', Sort.desc);
     });
   }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterSortBy> thenBySearchText() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'searchText', Sort.asc);
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QAfterSortBy>
+      thenBySearchTextDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'searchText', Sort.desc);
+    });
+  }
 }
 
 extension FilterPresetQueryWhereDistinct
@@ -928,6 +1123,13 @@ extension FilterPresetQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'name', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<FilterPreset, FilterPreset, QDistinct> distinctBySearchText(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'searchText', caseSensitive: caseSensitive);
     });
   }
 }
@@ -965,6 +1167,12 @@ extension FilterPresetQueryProperty
       return query.addPropertyName(r'name');
     });
   }
+
+  QueryBuilder<FilterPreset, String?, QQueryOperations> searchTextProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'searchText');
+    });
+  }
 }
 
 // **************************************************************************
@@ -982,7 +1190,8 @@ FilterPreset _$FilterPresetFromJson(Map<String, dynamic> json) => FilterPreset(
           .toList()
       ..colors = (json['colors'] as List<dynamic>?)
           ?.map((e) => RebrickableColor.fromJson(e as Map<String, dynamic>))
-          .toList();
+          .toList()
+      ..searchText = json['searchText'] as String?;
 
 Map<String, dynamic> _$FilterPresetToJson(FilterPreset instance) =>
     <String, dynamic>{
@@ -991,4 +1200,5 @@ Map<String, dynamic> _$FilterPresetToJson(FilterPreset instance) =>
       'imageUrl': instance.imageUrl,
       'categories': instance.categories?.map((e) => e.toJson()).toList(),
       'colors': instance.colors?.map((e) => e.toJson()).toList(),
+      'searchText': instance.searchText,
     };

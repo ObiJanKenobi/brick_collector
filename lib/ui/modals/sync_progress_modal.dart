@@ -1,16 +1,17 @@
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 
-Future<void> showSyncProgressModal(BuildContext context) async {
-  final service = collectionSyncService;
-  if (!appLogic.loggedIn) {
-    await loginUser(context);
-    if (!context.mounted) return;
-    if (!appLogic.loggedIn) return;
-  }
-
-  final sync = service.syncAll();
-
+/// Generic progress modal for any task that emits [SyncProgress] events.
+/// Pass the stream you're subscribing to and the future representing the work.
+/// Collection-sync callers can use [showSyncProgressModal] which wires defaults.
+Future<void> showProgressModal(
+  BuildContext context, {
+  required Stream<SyncProgress?> stream,
+  required Future<void> task,
+  String runningTitle = 'Syncing…',
+  String completeTitle = 'Sync complete',
+  String failedTitle = 'Sync failed',
+}) async {
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
@@ -18,17 +19,17 @@ Future<void> showSyncProgressModal(BuildContext context) async {
       return PopScope(
         canPop: false,
         child: StreamBuilder<SyncProgress?>(
-          stream: service.progressStream,
+          stream: stream,
           builder: (context, snapshot) {
             final p = snapshot.data;
             final finished = p?.finished ?? false;
             final failed = p?.failed ?? false;
-
             final failures = p?.failures ?? const <SyncFailure>[];
+
             return AlertDialog(
               backgroundColor: AppColors.surface,
               title: Text(
-                failed ? 'Sync failed' : (finished ? 'Sync complete' : 'Syncing collection…'),
+                failed ? failedTitle : (finished ? completeTitle : runningTitle),
                 style: const TextStyle(color: AppColors.textPrimary),
               ),
               content: ConstrainedBox(
@@ -102,5 +103,23 @@ Future<void> showSyncProgressModal(BuildContext context) async {
     },
   );
 
-  await sync;
+  await task;
+}
+
+/// Convenience wrapper around [showProgressModal] for the collection sync.
+Future<void> showSyncProgressModal(BuildContext context) async {
+  final service = collectionSyncService;
+  if (!appLogic.loggedIn) {
+    await loginUser(context);
+    if (!context.mounted) return;
+    if (!appLogic.loggedIn) return;
+  }
+
+  final sync = service.syncAll();
+  await showProgressModal(
+    context,
+    stream: service.progressStream,
+    task: sync,
+    runningTitle: 'Syncing collection…',
+  );
 }

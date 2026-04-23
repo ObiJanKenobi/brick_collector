@@ -10,9 +10,15 @@ import 'package:brick_collector/common_libs.dart';
 
 class PartGroupCard extends StatefulWidget {
   final CollectablePartGroup group;
-  final Moc moc;
+  final Moc? moc;
+  final bool positiveQuantity;
 
-  const PartGroupCard(this.group, this.moc, {super.key});
+  const PartGroupCard(
+    this.group,
+    this.moc, {
+    this.positiveQuantity = false,
+    super.key,
+  });
 
   @override
   State<StatefulWidget> createState() => PartGroupCardState();
@@ -28,7 +34,8 @@ String _cacheKey(String partNum, List<NeededColor> colorsByNeed) {
 
 class PartGroupCardState extends State<PartGroupCard> {
   CollectablePartGroup get group => widget.group;
-  Moc get moc => widget.moc;
+  Moc? get moc => widget.moc;
+  bool get _positive => widget.positiveQuantity;
 
   bool get _isComplete => group.collectedCount >= group.quantity;
 
@@ -113,7 +120,9 @@ class PartGroupCardState extends State<PartGroupCard> {
   @override
   Widget build(BuildContext context) {
     final sorted = <CollectablePart>[...group.parts];
-    sorted.sort((a, b) => (a.colorName ?? '').compareTo(b.colorName ?? ''));
+    sorted.sort((a, b) => _positive
+        ? b.quantity.compareTo(a.quantity)
+        : (a.colorName ?? '').compareTo(b.colorName ?? ''));
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -122,134 +131,234 @@ class PartGroupCardState extends State<PartGroupCard> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          context.push(ScreenPaths.partGroup(group.partNum), extra: PartRouteData(group, moc));
+          final m = moc;
+          if (m != null) {
+            context.push(ScreenPaths.partGroup(group.partNum), extra: PartRouteData(group, m));
+          } else if (group.parts.isNotEmpty) {
+            context.push(ScreenPaths.partSummary(group.partNum), extra: group.parts.first);
+          }
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Part image
-              Hero(
-                tag: "part-img-${group.partNum}",
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SmartPartImage(
-                      candidates: _candidates.isNotEmpty
-                          ? _candidates
-                          : (group.imgUrl.isNotEmpty ? [group.imgUrl] : const []),
-                      onExhausted: _topNeed == null
-                          ? null
-                          : () => PartImageResolver.fetchApiUrl(group.partNum, _topNeed!.colorId),
-                      fallback: const Icon(Icons.widgets_outlined, color: AppColors.textSecondary, size: 20),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Name + total
-              Expanded(
-                flex: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      group.partName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${group.collectedCount}/${group.quantity}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: _isComplete ? Colors.greenAccent : AppColors.highlightColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Color chips
-              Expanded(
-                flex: 5,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: sorted.map((part) => _buildColorChip(context, part)).toList(),
-                ),
-              ),
-            ],
+          child: _positive ? _buildCompactLayout(sorted) : _buildMocLayout(sorted),
+        ),
+      ),
+    );
+  }
+
+  Widget _partImage(double size, double iconSize) {
+    return Hero(
+      tag: "part-img-${group.partNum}",
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SmartPartImage(
+            candidates: _candidates.isNotEmpty
+                ? _candidates
+                : (group.imgUrl.isNotEmpty ? [group.imgUrl] : const []),
+            onExhausted: _topNeed == null
+                ? null
+                : () => PartImageResolver.fetchApiUrl(group.partNum, _topNeed!.colorId),
+            fallback: Icon(Icons.widgets_outlined, color: AppColors.textSecondary, size: iconSize),
           ),
         ),
       ),
     );
   }
 
+  Widget _buildMocLayout(List<CollectablePart> sorted) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _partImage(70, 20),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                group.partName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${group.collectedCount}/${group.quantity}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _isComplete ? Colors.greenAccent : AppColors.highlightColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 5,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: sorted.map((part) => _buildColorChip(context, part)).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactLayout(List<CollectablePart> sorted) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _partImage(60, 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    group.partName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${group.partNum} · ${group.quantity} total',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.highlightColor),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: sorted.map((part) => _buildColorChip(context, part)).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildColorChip(BuildContext context, CollectablePart part) {
     final bool anyColor = part.color == "9999" || part.colorName == "No Color/Any Color";
     final Color color = anyColor ? Colors.grey : HexColor.fromHex(part.rgb!);
-    final bool completed = part.completed;
-    final int remaining = part.remaining;
+    final bool completed = _positive ? false : part.completed;
     final bool isDark = color.computeLuminance() < 0.4;
+    final String label = _positive ? '${part.quantity}' : (completed ? '\u2713' : '-${part.remaining}');
 
     return GestureDetector(
-      onTap: () => _showCollectModal(part),
+      onTap: () {
+        if (_positive) {
+          context.push(ScreenPaths.partSummary(part.part ?? ''), extra: part);
+        } else {
+          _showCollectModal(part);
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                part.colorName ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: completed ? color.withValues(alpha: 0.35) : color,
-                borderRadius: BorderRadius.circular(6),
-                border: completed
-                    ? Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5)
-                    : Border.all(color: Colors.white.withValues(alpha: 0.15)),
-              ),
-              child: Center(
-                child: anyColor && !completed
-                    ? Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          const SizedBox(width: 30, height: 30, child: DiagonalStripePatternView()),
-                          Text('-$remaining',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                        ],
-                      )
-                    : Text(
-                        completed ? '\u2713' : '-$remaining',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: completed ? Colors.greenAccent : (isDark ? Colors.white : Colors.black87),
-                        ),
-                      ),
-              ),
-            ),
-          ],
+          children: _positive
+              ? [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                    ),
+                    child: Center(
+                      child: anyColor
+                          ? Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                const SizedBox(width: 30, height: 30, child: DiagonalStripePatternView()),
+                                Text(label,
+                                    style: const TextStyle(
+                                        fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                              ],
+                            )
+                          : Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 140,
+                    child: Text(
+                      part.colorName ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ]
+              : [
+                  Flexible(
+                    child: Text(
+                      part.colorName ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: completed ? color.withValues(alpha: 0.35) : color,
+                      borderRadius: BorderRadius.circular(6),
+                      border: completed
+                          ? Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5)
+                          : Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                    ),
+                    child: Center(
+                      child: anyColor && !completed
+                          ? Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                const SizedBox(width: 30, height: 30, child: DiagonalStripePatternView()),
+                                Text(label,
+                                    style: const TextStyle(
+                                        fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                              ],
+                            )
+                          : Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: completed ? Colors.greenAccent : (isDark ? Colors.white : Colors.black87),
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
         ),
       ),
     );
@@ -261,6 +370,7 @@ class PartGroupCardState extends State<PartGroupCard> {
         builder: (context) {
           return CollectModal(part);
         });
+    if (!mounted) return;
     const SaveMocNotification().dispatch(context);
   }
 }

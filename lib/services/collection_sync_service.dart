@@ -192,6 +192,8 @@ class CollectionSyncService {
             ..sourceType = CachedSourceType.set
             ..sourceExternalId = userSet.set.setNum
             ..partNum = p.part.partNum!
+            ..partName = p.part.name
+            ..partCategoryId = p.part.partCatId
             ..colorId = p.color.id
             ..colorName = p.color.name
             ..rgb = p.color.rgb
@@ -219,6 +221,8 @@ class CollectionSyncService {
             ..sourceType = CachedSourceType.partlist
             ..sourceExternalId = list.id.toString()
             ..partNum = p.part.partNum!
+            ..partName = p.part.name
+            ..partCategoryId = p.part.partCatId
             ..colorId = p.color.id
             ..colorName = p.color.name
             ..rgb = p.color.rgb

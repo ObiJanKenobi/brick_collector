@@ -7,6 +7,29 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
+/// Aggregated view of the user's inventory for preset display — one row per
+/// (partNum, colorId), quantity summed across all sources (sets + partlists).
+class AggregatedInventoryRow {
+  AggregatedInventoryRow({
+    required this.partNum,
+    required this.colorId,
+    this.partName,
+    this.partCategoryId,
+    this.colorName,
+    this.rgb,
+    this.imgUrl,
+    this.quantity = 0,
+  });
+  final String partNum;
+  final int colorId;
+  String? partName;
+  int? partCategoryId;
+  String? colorName;
+  String? rgb;
+  String? imgUrl;
+  int quantity;
+}
+
 class DbLogic {
   late final Isar _isar;
 
@@ -87,6 +110,56 @@ class DbLogic {
         .and()
         .externalIdEqualTo(externalId)
         .findFirst();
+  }
+
+  /// Filter & aggregate the inventory cache by preset criteria. Returns one row
+  /// per (partNum, colorId) with quantity summed across every matching source.
+  /// Empty [categoryIds] = no category filter; empty [colorIds] = no color filter;
+  /// empty/null [searchText] = no name filter.
+  Future<List<AggregatedInventoryRow>> filterInventory({
+    Set<int> categoryIds = const {},
+    Set<int> colorIds = const {},
+    String? searchText,
+  }) async {
+    final rows = await _isar.cachedInventoryItems.where().findAll();
+    final search = (searchText ?? '').trim().toLowerCase();
+    final aggregated = <String, AggregatedInventoryRow>{};
+
+    for (final it in rows) {
+      if (colorIds.isNotEmpty && !colorIds.contains(it.colorId)) continue;
+      if (categoryIds.isNotEmpty &&
+          (it.partCategoryId == null || !categoryIds.contains(it.partCategoryId!))) continue;
+      if (search.isNotEmpty) {
+        final name = (it.partName ?? '').toLowerCase();
+        if (!name.contains(search)) continue;
+      }
+
+      final key = '${it.partNum}_${it.colorId}';
+      final existing = aggregated[key];
+      if (existing == null) {
+        aggregated[key] = AggregatedInventoryRow(
+          partNum: it.partNum,
+          colorId: it.colorId,
+          partName: it.partName,
+          partCategoryId: it.partCategoryId,
+          colorName: it.colorName,
+          rgb: it.rgb,
+          imgUrl: it.imgUrl,
+          quantity: it.quantity,
+        );
+      } else {
+        existing.quantity += it.quantity;
+        existing.partName ??= it.partName;
+        existing.partCategoryId ??= it.partCategoryId;
+        existing.colorName ??= it.colorName;
+        existing.rgb ??= it.rgb;
+        if ((existing.imgUrl ?? '').isEmpty && (it.imgUrl ?? '').isNotEmpty) {
+          existing.imgUrl = it.imgUrl;
+        }
+      }
+    }
+
+    return aggregated.values.toList();
   }
 
   Future<void> pruneOrphanSources(CachedSourceType type, Set<String> keepExternalIds) async {

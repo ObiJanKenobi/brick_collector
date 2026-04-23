@@ -73,8 +73,27 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
         [NeededColor(colorId: _filterColorId!, qty: 1, name: _filterColorName)],
       );
     } else {
+      // All-colors view: pick images for every owned color, biggest quantity first.
+      // Falls back to the incoming widget.part.details if the cache is empty.
+      final allItems = await dbLogic.findItemsForPart(partNum);
+      final byColor = <int, int>{};
+      final colorNames = <int, String?>{};
+      for (final it in allItems) {
+        byColor[it.colorId] = (byColor[it.colorId] ?? 0) + it.quantity;
+        colorNames[it.colorId] ??= it.colorName;
+      }
+      final needs = byColor.entries
+          .map((e) => NeededColor(colorId: e.key, qty: e.value, name: colorNames[e.key]))
+          .toList()
+        ..sort((a, b) => b.qty.compareTo(a.qty));
+      headerCandidates = await PartImageResolver.resolveCandidates(partNum, needs);
+      // If cache is empty for this part, synthesize a URL using the entry color we arrived with.
+      final entryColorId = int.tryParse(widget.part.color ?? '');
+      if (headerCandidates.isEmpty && entryColorId != null) {
+        headerCandidates = [PartImageResolver.buildCdnUrl(partNum, entryColorId)];
+      }
       final generic = widget.part.details?.imgUrl;
-      headerCandidates = (generic != null && generic.isNotEmpty) ? [generic] : const [];
+      if (generic != null && generic.isNotEmpty) headerCandidates = [...headerCandidates, generic];
     }
 
     final grouped = <String, List<CachedInventoryItem>>{};

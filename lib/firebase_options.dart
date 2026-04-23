@@ -62,11 +62,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBnon2FwkWX45GajLOKc3wV7ChMLUYeN_E',
-    appId: '1:392508468357:ios:64679c788dcffd59940dec',
+    appId: '1:392508468357:ios:68ab5bdfe4f7e89a940dec',
     messagingSenderId: '392508468357',
     projectId: 'brick-collector-3d1bc',
     storageBucket: 'brick-collector-3d1bc.firebasestorage.app',
-    iosBundleId: 'com.example.brickCollector',
+    iosBundleId: 'de.fpe.brickCollector',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
