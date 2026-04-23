@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "392508468357",
+    "project_id": "brick-collector-3d1bc",
+    "storage_bucket": "brick-collector-3d1bc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:392508468357:android:92fd718c9305d275940dec",
+        "android_client_info": {
+          "package_name": "com.example.brick_collector"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9B53uijJPoUcBG9rrGH_v4STEZ90quXA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

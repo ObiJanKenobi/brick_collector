@@ -5,6 +5,7 @@ import 'package:brick_collector/ui/nav_menu.dart';
 import 'package:brick_collector/ui/part_group_card.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MocScreen extends StatefulWidget {
   final Moc moc;
@@ -43,71 +44,35 @@ class MocScreenState extends State<MocScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        foregroundColor: Colors.white,
-        title: Text("${moc.name} | ${moc.collectedCount} Collected"),
-        // | ${moc.parts?.length ?? 0} Parts | ${moc.quantity} Quantity |
-        automaticallyImplyLeading: true,
-        actions: [IconButton(onPressed: userClick, icon: const Icon(Icons.person)), const SizedBox(width: 30, height: 0)],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(2.0),
-          child: Container(
-            height: 2,
-            decoration: const BoxDecoration(color: AppColors.highlightColor
-                // gradient: LinearGradient(
-                //   colors: <Color>[Color(0xFFF2542D), Colors.red],
-                // ),
-                ),
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(moc.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text("${moc.collectedCount} / ${moc.quantity} collected",
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ],
         ),
+        automaticallyImplyLeading: true,
       ),
       drawer: const Drawer(child: NavMenu()),
       body: NotificationListener<SaveMocNotification>(
         onNotification: _saveMoc,
         child: CustomScrollView(slivers: childs),
       ),
-      floatingActionButton: FloatingActionButton(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100.0)),
-        backgroundColor: const Color(0xFFF2542D),
-        onPressed: _addParts,
-        tooltip: 'Add parts',
-        child: const Icon(Icons.add),
-      ),
-      // This trailing comma makes auto-formatting nicer for build methods.
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      extendBody: true,
       bottomNavigationBar: BottomAppBar(
-        color: AppColors.navItemBgColor,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
         child: Row(
-          mainAxisSize: MainAxisSize.max,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            IconButton(
-                onPressed: editMoc,
-                icon: const Icon(
-                  Icons.edit,
-                  color: Colors.white,
-                )),
-            IconButton(
-                onPressed: sortParts,
-                icon: const Icon(
-                  Icons.sort,
-                  color: Colors.white,
-                )),
+            IconButton(onPressed: editMoc, icon: const Icon(Icons.edit), tooltip: 'Rename'),
+            IconButton(onPressed: _addParts, icon: const Icon(Icons.file_download), tooltip: 'Import CSV'),
+            if (moc.sourceUrl != null)
+              IconButton(onPressed: _openOnRebrickable, icon: const Icon(Icons.open_in_browser), tooltip: 'Rebrickable'),
+            IconButton(onPressed: sortParts, icon: const Icon(Icons.sort), tooltip: 'Sort'),
             IconButton(
                 onPressed: showSettings,
-                icon: Icon(
-                  moc.hideComplete ? Icons.disabled_visible : Icons.remove_red_eye,
-                  color: Colors.white,
-                )),
+                icon: Icon(moc.hideComplete ? Icons.disabled_visible : Icons.remove_red_eye),
+                tooltip: 'Toggle completed'),
             const Spacer(),
-            IconButton(
-                onPressed: deleteMoc,
-                icon: const Icon(
-                  Icons.delete,
-                  color: Colors.white,
-                ))
+            IconButton(onPressed: deleteMoc, icon: const Icon(Icons.delete), tooltip: 'Delete'),
           ],
         ),
       ),
@@ -162,20 +127,12 @@ class MocScreenState extends State<MocScreen> {
     }).where((element) => moc.hideComplete ? element.collectedCount != element.quantity : true);
 
     return SliverPadding(
-      padding: const EdgeInsets.only(bottom: 90),
-      sliver: SliverGrid(
-        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: maxCardWidth,
-          mainAxisSpacing: 6.0,
-          crossAxisSpacing: 6.0,
-          childAspectRatio: 2.5,
-        ),
-        delegate: SliverChildBuilderDelegate(
-          (BuildContext context, int index) {
-            return PartGroupCard(sortedParts.elementAt(index), moc);
-          },
-          childCount: sortedParts.length,
-        ),
+      padding: const EdgeInsets.only(bottom: 16, left: 8, right: 8, top: 8),
+      sliver: SliverList.builder(
+        itemBuilder: (BuildContext context, int index) {
+          return PartGroupCard(sortedParts.elementAt(index), moc);
+        },
+        itemCount: sortedParts.length,
       ),
     );
   }
@@ -234,9 +191,9 @@ class MocScreenState extends State<MocScreen> {
     setState(() {});
   }
 
-  void userClick() async {
-    if (!appLogic.loggedIn) {
-      await loginUser(context);
-    }
+  void _openOnRebrickable() async {
+    final uri = Uri.parse(moc.sourceUrl!);
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
+
 }

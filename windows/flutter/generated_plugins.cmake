@@ -4,9 +4,13 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   brick_lib
+  cloud_firestore
   dynamic_color
   file_selector_windows
-  isar_flutter_libs
+  firebase_auth
+  firebase_core
+  isar_community_flutter_libs
+  msix
   url_launcher_windows
 )
 

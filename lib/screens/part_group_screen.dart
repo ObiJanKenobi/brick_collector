@@ -2,9 +2,11 @@ import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/CollectablePartGroup.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/notifications/save_moc_notification.dart';
+import 'package:brick_collector/services/part_image_resolver.dart';
 import 'package:brick_collector/ui/StripedContainer.dart';
 import 'package:brick_collector/ui/app_colors.dart';
 import 'package:brick_collector/ui/back_button.dart';
+import 'package:brick_collector/ui/smart_part_image.dart';
 import 'package:brick_collector/ui/modals/collect_modal.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
@@ -24,13 +26,58 @@ class PartGroupScreen extends StatefulWidget {
 class PartGroupScreenState extends State<PartGroupScreen> {
   PartGroupScreenState();
 
+  final Map<String, int> _inventoryCounts = {};
+  List<String> _headerCandidates = const [];
+  NeededColor? _topNeed;
+
   CollectablePartGroup get group => widget.group;
 
   Moc get moc => widget.moc;
 
+  String _inventoryKey(CollectablePart part) => "${part.part}_${part.color}";
+
   @override
   void initState() {
     super.initState();
+    _loadInventoryCounts();
+  }
+
+  Future<void> _loadInventoryCounts() async {
+    final counts = await Future.wait(group.parts.map((part) async {
+      final partNum = part.part;
+      final colorId = int.tryParse(part.color ?? '');
+      if (partNum == null || colorId == null) {
+        return MapEntry(_inventoryKey(part), 0);
+      }
+      final items = await dbLogic.findItemsForPart(partNum, colorId: colorId);
+      final count = items.fold<int>(0, (sum, i) => sum + i.quantity);
+      return MapEntry(_inventoryKey(part), count);
+    }));
+
+    final partNum = group.partNum;
+    final colorsByNeed = <int, NeededColor>{};
+    for (final p in group.parts) {
+      final cid = int.tryParse(p.color ?? '');
+      if (cid == null) continue;
+      final prev = colorsByNeed[cid];
+      colorsByNeed[cid] = NeededColor(
+        colorId: cid,
+        qty: (prev?.qty ?? 0) + p.quantity,
+        name: p.colorName ?? prev?.name,
+      );
+    }
+    final needList = colorsByNeed.values.toList()..sort((a, b) => b.qty.compareTo(a.qty));
+    final candidates = await PartImageResolver.resolveCandidates(partNum, needList);
+    final top = needList.isEmpty ? null : needList.first;
+
+    if (!mounted) return;
+    setState(() {
+      for (final entry in counts) {
+        _inventoryCounts[entry.key] = entry.value;
+      }
+      _headerCandidates = candidates;
+      _topNeed = top;
+    });
   }
 
   @override
@@ -100,61 +147,56 @@ class PartGroupScreenState extends State<PartGroupScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        foregroundColor: Colors.white,
         title: Text(
-          "${group.partName}",
+          group.partName,
           maxLines: 2,
-          style: const TextStyle(fontSize: 16),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
-        // | ${moc.parts?.length ?? 0} Parts | ${moc.quantity} Quantity |
         leading: const MyBackButton(),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(2.0),
-          child: Container(
-            height: 2,
-            decoration: const BoxDecoration(color: AppColors.highlightColor
-                // gradient: LinearGradient(
-                //   colors: <Color>[Color(0xFFF2542D), Colors.red],
-                // ),
-                ),
-          ),
-        ),
       ),
       body: Stack(children: [
         Positioned(
-            top: 10,
-            left: 10,
-            right: 10,
+            top: 12,
+            left: 12,
+            right: 12,
             child: Row(children: [
               Hero(
                   tag: "part-img-${group.partNum}",
-                  child: CircleAvatar(
-                      radius: 46,
-                      backgroundColor: AppColors.navItemBgColor,
-                      child: group.imgUrl.isNotEmpty
-                          ? Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: CircleAvatar(
-                                radius: 44,
-                                backgroundColor: Colors.white,
-                                foregroundImage: CachedNetworkImageProvider(group.imgUrl),
-                              ),
-                            )
-                          : const CircleAvatar(radius: 46, backgroundColor: Colors.white))),
-              const SizedBox(
-                width: 10,
-              ),
+                  child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLight,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: SmartPartImage(
+                          candidates: _headerCandidates.isNotEmpty
+                              ? _headerCandidates
+                              : (group.imgUrl.isNotEmpty ? [group.imgUrl] : const []),
+                          onExhausted: _topNeed == null
+                              ? null
+                              : () => PartImageResolver.fetchApiUrl(group.partNum, _topNeed!.colorId),
+                          fallback: const Icon(Icons.widgets_outlined, color: AppColors.textSecondary, size: 32),
+                        ),
+                      ))),
+              const SizedBox(width: 12),
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Text("Collected: ${group.collectedCount} / ${group.quantity}", style: Theme.of(context).textTheme.titleLarge),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text("${group.collectedCount} / ${group.quantity}", style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 4),
                   GestureDetector(
                     onTap: () async {
                       await Clipboard.setData(ClipboardData(text: group.partNum));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Teilenummer in Zwischenablage kopiert")));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Part number copied")));
                     },
-                    child: Text(
-                      "Part-Number: ${group.partNum}",
-                      style: Theme.of(context).textTheme.titleSmall,
+                    child: Row(
+                      children: [
+                        Text(group.partNum, style: const TextStyle(color: AppColors.textSecondary)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.copy, size: 14, color: AppColors.textSecondary),
+                      ],
                     ),
                   ),
                 ]),
@@ -162,48 +204,28 @@ class PartGroupScreenState extends State<PartGroupScreen> {
             ])),
         group.parts.isNotEmpty
             ? Positioned(
-                top: 120,
+                top: 110,
                 left: 10,
                 right: 10,
                 bottom: 0,
-                child: CustomScrollView(
-                  slivers: slivers,
-                )
-                // SingleChildScrollView(
-                //   child: Column(children: group.parts.map((e) => _buildPartListItem(e)).toList()),
-                // ),
-                )
-            : const Center(child: Text("No Parts"))
+                child: CustomScrollView(slivers: slivers))
+            : const Center(child: Text("No Parts", style: TextStyle(color: AppColors.textSecondary)))
       ]),
       bottomNavigationBar: BottomAppBar(
-        color: AppColors.navItemBgColor,
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,
         child: Row(
           mainAxisSize: MainAxisSize.max,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            IconButton(
-                onPressed: sortParts,
-                icon: const Icon(
-                  Icons.sort,
-                  color: Colors.white,
-                )),
+            IconButton(onPressed: sortParts, icon: const Icon(Icons.sort)),
             IconButton(
                 onPressed: showSettings,
-                icon: Icon(
-                  moc.hideCompleteGroup ? Icons.disabled_visible : Icons.remove_red_eye,
-                  color: Colors.white,
-                )),
+                icon: Icon(moc.hideCompleteGroup ? Icons.disabled_visible : Icons.remove_red_eye)),
             const Spacer(),
             IconButton(
-                onPressed: () {
-                  handleDeleteGroup(group.partNum);
-                },
-                icon: const Icon(
-                  Icons.delete,
-                  color: Colors.white,
-                ))
+                onPressed: () { handleDeleteGroup(group.partNum); },
+                icon: const Icon(Icons.delete))
           ],
         ),
       ),
@@ -220,13 +242,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
 
           // The start action pane is the one at the left or the top side.
           startActionPane: ActionPane(
-            // A motion is a widget used to control how the pane animates.
             motion: const DrawerMotion(),
-
-            // A pane can dismiss the Slidable.
-            dismissible: DismissiblePane(onDismissed: () {}),
-
-            // All actions are defined in the children parameter.
             children: [
               // A SlidableAction can have an icon and/or a label.
               SlidableAction(
@@ -240,7 +256,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
               ),
               SlidableAction(
                 onPressed: (ctx) {
-                  getPartsInCollection(part);
+                  context.push(ScreenPaths.partSummary(part.part!), extra: part);
                 },
                 backgroundColor: const Color(0xFF21B7CA),
                 foregroundColor: Colors.white,
@@ -285,7 +301,9 @@ class PartGroupScreenState extends State<PartGroupScreen> {
               ),
               title: Text("${part.colorName}"),
               subtitle: Text(
-                "${part.collectedCount} / ${part.quantity}",
+                _inventoryCounts.containsKey(_inventoryKey(part))
+                    ? "${part.collectedCount} / ${part.quantity} (${_inventoryCounts[_inventoryKey(part)]})"
+                    : "${part.collectedCount} / ${part.quantity}",
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ))),
     );

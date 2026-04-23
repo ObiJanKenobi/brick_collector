@@ -1,9 +1,13 @@
 import 'package:brick_collector/model/CollectablePartGroup.dart';
+import 'package:brick_collector/screens/group_setup_screen.dart';
 import 'package:brick_collector/screens/moc_list_screen.dart';
 import 'package:brick_collector/screens/moc_screen.dart';
 import 'package:brick_collector/screens/part_group_screen.dart';
+import 'package:brick_collector/screens/part_summary_screen.dart';
 import 'package:brick_collector/screens/parts_filter_screen.dart';
 import 'package:brick_collector/screens/preset_list_screen.dart';
+import 'package:brick_collector/model/collectable_part.dart';
+import 'package:brick_collector/services/group_service.dart';
 import 'package:brick_collector/ui/app_colors.dart';
 import 'package:brick_collector/ui/back_button.dart';
 import 'package:brick_collector/ui/nav_menu.dart';
@@ -13,6 +17,7 @@ import 'package:brick_collector/common_libs.dart';
 /// Shared paths / urls used across the app
 class ScreenPaths {
   static const String splash = '/';
+  static const String setup = '/setup';
   static const String home = '/home';
   static const String parts = '/parts';
   static const String settings = '/settings';
@@ -21,7 +26,9 @@ class ScreenPaths {
 
   static String partGroup(String partNum) => '/partgroup/$partNum';
 
-  static String mocPage(int id) => '/moc/$id';
+  static String partSummary(String partNum) => '/partsummary/$partNum';
+
+  static String mocPage(String? id) => '/moc/${id ?? 'new'}';
 
   static String partFilterPage(int id) => '/filter/$id';
 
@@ -38,16 +45,18 @@ class PartRouteData {
 /// Routing table, matches string paths to UI Screens, optionally parses params from the paths
 final appRouter = GoRouter(
   redirect: _handleRedirect,
-  // navigatorBuilder: (_, __, child) => Scaffold(body: child),
   routes: [
-    AppRoute(ScreenPaths.splash, (_) => Container(color: const Color(0xFFC0C0C0))),
-    // This will be hidden
+    AppRoute(ScreenPaths.splash, (_) => Container(color: AppColors.bg)),
+    AppRoute(ScreenPaths.setup, (_) => const GroupSetupScreen()),
     AppRoute(ScreenPaths.home, (_) => const MocListScreen()),
     AppRoute(ScreenPaths.parts, (_) => const PresetListScreen()),
-    // AppRoute(ScreenPaths.collected, (_) => const CollectedScreen()),
     AppRoute('/partgroup/:partNum', (s) {
       final data = s.extra! as PartRouteData;
       return PartGroupScreen(data.group, data.moc);
+    }, useFade: true),
+    AppRoute('/partsummary/:partNum', (s) {
+      final part = s.extra! as CollectablePart;
+      return PartSummaryScreen(part);
     }, useFade: true),
     AppRoute('/filter/:id', (s) {
       final filterId = s.pathParameters["id"];
@@ -97,6 +106,12 @@ String? _handleRedirect(BuildContext context, GoRouterState state) {
   if (!appLogic.isBootstrapComplete && state.matchedLocation != ScreenPaths.splash) {
     return ScreenPaths.splash;
   }
+
+  // If no group is set up, redirect to setup screen.
+  if (appLogic.isBootstrapComplete && !GroupService.instance.hasGroup && state.matchedLocation != ScreenPaths.setup) {
+    return ScreenPaths.setup;
+  }
+
   debugPrint('Navigate to: ${state.matchedLocation}');
   return null; // do nothing
 }

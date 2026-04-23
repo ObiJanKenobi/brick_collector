@@ -25,21 +25,8 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
     return SliverAppBar(
       floating: true,
       pinned: true,
-      foregroundColor: Colors.white,
-      backgroundColor: AppColors.seedColor,
+      backgroundColor: AppColors.surface,
       title: Text(title),
-      actions: [IconButton(onPressed: userClick, icon: const Icon(Icons.person)), const SizedBox(width: 30, height: 0)],
-      // bottom: PreferredSize(
-      //   preferredSize: const Size.fromHeight(2.0),
-      //   child: Container(
-      //     height: 2,
-      //     decoration: const BoxDecoration(color: AppColors.highlightColor
-      //         // gradient: LinearGradient(
-      //         //   colors: <Color>[Color(0xFFF2542D), Colors.red],
-      //         // ),
-      //         ),
-      //   ),
-      // ),
     );
   }
 
@@ -120,31 +107,15 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
       // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       extendBody: true,
       bottomNavigationBar: BottomAppBar(
-          color: AppColors.navItemBgColor,
-          shape: CircularNotchedRectangle(),
+          shape: const CircularNotchedRectangle(),
           notchMargin: 10,
           child: Row(mainAxisSize: MainAxisSize.max, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            IconButton(
-                onPressed: savePreset,
-                icon: const Icon(
-                  Icons.save,
-                  color: Colors.white,
-                )),
-            IconButton(
-                onPressed: executePreset,
-                icon: const Icon(
-                  Icons.remove_red_eye,
-                  color: Colors.white,
-                )),
+            IconButton(onPressed: savePreset, icon: const Icon(Icons.save)),
+            IconButton(onPressed: executePreset, icon: const Icon(Icons.remove_red_eye)),
           ])),
     );
   }
 
-  void userClick() async {
-    if (!appLogic.loggedIn) {
-      await loginUser(context);
-    }
-  }
 
   Widget buildCategoryDisplay(RebrickablePartCategory data) {
     return ListTile(

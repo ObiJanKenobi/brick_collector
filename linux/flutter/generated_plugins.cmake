@@ -4,6 +4,9 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   brick_lib
+  dynamic_color
+  file_selector_linux
+  isar_community_flutter_libs
   url_launcher_linux
 )
 

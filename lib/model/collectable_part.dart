@@ -2,7 +2,6 @@ import 'package:brick_collector/common_libs.dart';
 
 part 'collectable_part.g.dart';
 
-@embedded
 @JsonSerializable(explicitToJson: true)
 class CollectablePart extends BrickPart {
   CollectablePart(
@@ -20,10 +19,8 @@ class CollectablePart extends BrickPart {
 
   int collectedCount = 0;
 
-  @ignore
   int get remaining => quantity - collectedCount;
 
-  @ignore
   bool get completed => quantity == collectedCount;
 
   factory CollectablePart.fromJson(Map<String, dynamic> json) => _$CollectablePartFromJson(json);

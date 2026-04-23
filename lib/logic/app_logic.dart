@@ -4,6 +4,12 @@ import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/CollectablePartGroup.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+const _rbTokenKey = 'rb_user_token';
+const _rbUsernameKey = 'rb_username';
+const _cacheSchemaKey = 'inventory_cache_schema_version';
+const _cacheSchemaVersion = 2;
 
 class AppLogic {
   final Logger log = getLogger("AppLogic");
@@ -13,18 +19,46 @@ class AppLogic {
   bool isBootstrapComplete = false;
 
   bool _loggedIn = false;
+  String? _username;
 
   bool get loggedIn => _loggedIn;
+  String? get username => _username;
 
   Future<void> bootstrap() async {
     await brickConverterLogic.load();
     await dbLogic.bootstrap();
-    await mocLogic.bootstrap();
     await partsLogic.bootstrap();
+    await _migrateCacheIfNeeded();
+    await _restoreLogin();
 
     isBootstrapComplete = true;
 
-    appRouter.go(ScreenPaths.parts);
+    appRouter.go(ScreenPaths.home);
+  }
+
+  Future<void> _migrateCacheIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getInt(_cacheSchemaKey);
+    if (stored == _cacheSchemaVersion) return;
+
+    log.i('Inventory cache schema $stored -> $_cacheSchemaVersion: clearing cache');
+    try {
+      await dbLogic.clearInventoryCache();
+    } catch (e) {
+      log.w('Failed to clear inventory cache during migration: $e');
+    }
+    await prefs.remove('collection_last_sync_at');
+    await prefs.setInt(_cacheSchemaKey, _cacheSchemaVersion);
+  }
+
+  Future<void> _restoreLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_rbTokenKey);
+    if (token != null && token.isNotEmpty) {
+      rbService.restoreToken(token);
+      _loggedIn = true;
+      _username = prefs.getString(_rbUsernameKey);
+    }
   }
 
   reset() {}
@@ -132,8 +166,27 @@ class AppLogic {
     return merged;
   }
 
-  loginUser(String username, String password) async {
-    final user = await rbService.login(username, password);
+  Future<bool> loginUser(String username, String password) async {
+    final token = await rbService.login(username, password);
+    if (token == null) {
+      _loggedIn = false;
+      return false;
+    }
     _loggedIn = true;
+    _username = username;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_rbTokenKey, token);
+    await prefs.setString(_rbUsernameKey, username);
+    return true;
+  }
+
+  Future<void> logout() async {
+    _loggedIn = false;
+    _username = null;
+    rbService.logout();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_rbTokenKey);
+    await prefs.remove(_rbUsernameKey);
+    await dbLogic.clearInventoryCache();
   }
 }

@@ -16,6 +16,6 @@ export 'package:brick_collector/main.dart';
 export 'package:brick_collector/router.dart';
 export 'package:brick_lib/brick_lib.dart';
 export 'package:logger/logger.dart';
-export 'package:isar/isar.dart';
+export 'package:isar_community/isar.dart';
 export 'package:json_annotation/json_annotation.dart';
 export 'package:adaptive_dialog/adaptive_dialog.dart';

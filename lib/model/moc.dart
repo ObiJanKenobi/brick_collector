@@ -1,24 +1,24 @@
 import 'package:brick_collector/common_libs.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'collectable_part.dart';
 
 part 'moc.g.dart';
 
-@collection
 @JsonSerializable(explicitToJson: true)
 class Moc {
   Moc({required this.name});
 
-  Id id = Isar.autoIncrement;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  String? firestoreId;
 
   String name;
   String? imageUrl;
+  String? sourceUrl;
 
   List<CollectablePart>? parts;
 
-  @Enumerated(EnumType.name)
   PartSort sort = PartSort.nameAsc;
-  @Enumerated(EnumType.name)
   PartSort groupSort = PartSort.nameAsc;
 
   @JsonKey(defaultValue: false)
@@ -33,6 +33,13 @@ class Moc {
   factory Moc.fromJson(Map<String, dynamic> json) => _$MocFromJson(json);
 
   Map<String, dynamic> toJson() => _$MocToJson(this);
+
+  factory Moc.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final moc = Moc.fromJson(data);
+    moc.firestoreId = doc.id;
+    return moc;
+  }
 }
 
 enum PartSort {

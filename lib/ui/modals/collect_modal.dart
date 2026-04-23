@@ -49,29 +49,27 @@ class CollectModalState extends State<CollectModal> {
             children: [
               const Spacer(),
               FilledButton.icon(
-                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.orange)),
+                style: ButtonStyle(backgroundColor: WidgetStatePropertyAll<Color>(AppColors.highlightColor.withValues(alpha: 0.8))),
                 onPressed: decreaseCount,
-                icon: const Icon(
-                  Icons.remove,
-                  size: 50,
-                ),
+                icon: const Icon(Icons.remove, size: 50),
                 label: const Text("Reduce"),
               ),
               const SizedBox(width: 10, height: 0),
               FilledButton.icon(
-                style: const ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(Colors.green)),
+                style: const ButtonStyle(backgroundColor: WidgetStatePropertyAll<Color>(Colors.green)),
                 onPressed: increaseCount,
-                icon: const Icon(
-                  Icons.add,
-                  size: 50,
-                ),
+                icon: const Icon(Icons.add, size: 50),
                 label: const Text("Add"),
               ),
               const Spacer(),
             ],
           ),
           const SizedBox(width: 0, height: 10),
-          FilledButton(onPressed: closeModal, child: const Text("Save"))
+          FilledButton(
+            style: const ButtonStyle(backgroundColor: WidgetStatePropertyAll<Color>(AppColors.highlightColor)),
+            onPressed: closeModal,
+            child: const Text("Save"),
+          )
         ],
       ),
     );

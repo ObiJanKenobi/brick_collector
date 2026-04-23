@@ -40,21 +40,8 @@ class PresetListScreenState extends State<PresetListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        foregroundColor: Colors.white,
-        title: Text("Presets"),
+        title: const Text("Presets"),
         automaticallyImplyLeading: true,
-        actions: [IconButton(onPressed: userClick, icon: Icon(Icons.person)), const SizedBox(width: 30, height: 0)],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(2.0),
-          child: Container(
-            height: 2,
-            decoration: const BoxDecoration(color: AppColors.highlightColor
-                // gradient: LinearGradient(
-                //   colors: <Color>[Color(0xFFF2542D), Colors.red],
-                // ),
-                ),
-          ),
-        ),
       ),
       drawer: const Drawer(child: NavMenu()),
       body: CustomScrollView(slivers: [
@@ -65,47 +52,37 @@ class PresetListScreenState extends State<PresetListScreen> {
                 return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()));
               }
               if (snapshot.hasData == false || snapshot.data?.isEmpty == true) {
-                return const SliverToBoxAdapter(child: Text("No Collections"));
+                return const SliverToBoxAdapter(
+                  child: Center(child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text("No Presets", style: TextStyle(color: AppColors.textSecondary)),
+                  )),
+                );
               }
 
-              return SliverGrid(
-                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: maxCardWidth,
-                  mainAxisSpacing: 6.0,
-                  crossAxisSpacing: 6.0,
-                  childAspectRatio: 2.0,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (BuildContext context, int index) {
-                    return _buildPreset(snapshot.data![index]);
-                  },
-                  childCount: snapshot.data!.length,
+              return SliverPadding(
+                padding: const EdgeInsets.all(12),
+                sliver: SliverList.builder(
+                  itemBuilder: (context, index) => _buildPreset(snapshot.data![index]),
+                  itemCount: snapshot.data!.length,
                 ),
               );
             })
       ]),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFFF2542D),
         onPressed: _addPreset,
         tooltip: 'Create a new filter preset',
         child: const Icon(Icons.add),
       ),
-      // This trailing comma makes auto-formatting nicer for build methods.
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       extendBody: true,
       bottomNavigationBar: const BottomAppBar(
-        color: AppColors.navItemBgColor,
         shape: CircularNotchedRectangle(),
         notchMargin: 10,
       ),
     );
   }
 
-  void userClick() async {
-    if (!appLogic.loggedIn) {
-      await loginUser(context);
-    }
-  }
 
   Widget _buildPreset(FilterPreset filterPreset) {
     return ListTile(
