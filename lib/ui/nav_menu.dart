@@ -89,30 +89,38 @@ class NavMenuState extends State<NavMenu> {
                 const SizedBox(height: 16),
               ],
               const Divider(height: 1),
-              _navItem(context, Icons.home_outlined, 'MOCs', () => context.go(ScreenPaths.home)),
-              _navItem(context, Icons.filter_list, 'Presets', () => context.go(ScreenPaths.parts)),
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.only(left: 20, top: 12, bottom: 4, right: 12),
-                child: Row(
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
                   children: [
-                    Text('MY MOCs',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary.withValues(alpha: 0.6), letterSpacing: 1)),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => _addMoc(context),
-                      child: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.highlightColor),
+                    _navItem(context, Icons.home_outlined, 'MOCs', () => context.go(ScreenPaths.home)),
+                    _navItem(context, Icons.filter_list, 'Presets', () => context.go(ScreenPaths.parts)),
+                    _navItem(context, Icons.widgets_outlined, 'My Sets', () => context.go(ScreenPaths.mySets)),
+                    _navItem(context, Icons.center_focus_strong_outlined, 'Count Pieces', () => context.go(ScreenPaths.pieceCounter)),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20, top: 12, bottom: 4, right: 12),
+                      child: Row(
+                        children: [
+                          Text('MY MOCs',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary.withValues(alpha: 0.6), letterSpacing: 1)),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () => _addMoc(context),
+                            child: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.highlightColor),
+                          ),
+                        ],
+                      ),
                     ),
+                    if (snapshot.data != null && snapshot.data!.isNotEmpty)
+                      ...snapshot.data!.map((e) => _navItem(
+                        context, Icons.widgets_outlined, e.name,
+                        () => context.go(ScreenPaths.mocPage(e.firestoreId), extra: e),
+                      )),
                   ],
                 ),
               ),
-              if (snapshot.data != null && snapshot.data!.isNotEmpty)
-                ...snapshot.data!.map((e) => _navItem(
-                  context, Icons.widgets_outlined, e.name,
-                  () => context.go(ScreenPaths.mocPage(e.firestoreId), extra: e),
-                )),
-              const Spacer(),
               const Divider(height: 1),
               _accountItem(context),
               _syncItem(context),

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:brick_collector/common_libs.dart';
@@ -79,7 +80,7 @@ class AppLogic {
         // mocName = filenameWithoutExtension.replaceFirst("rebrickable_parts_", "");
 
         String content = await file.readAsString();
-        List<String> csvLines = content.split("\r\n");
+        List<String> csvLines = const LineSplitter().convert(content);
         final List<BrickPart> parts = await brickConverterLogic.parseParts(csvLines);
 
         allParts.addAll(parts);
@@ -100,10 +101,41 @@ class AppLogic {
       if (groupedParts.containsKey(part.part) == false) {
         groupedParts[part.part!] = CollectablePartGroup();
       }
-      groupedParts[part.part]?.addPart(part);
+      // Append directly instead of PartGroup.addPart: addPart merges
+      // same-colour duplicates by MUTATING the existing part's quantity.
+      // With persisted MOC parts this runs on every rebuild and silently
+      // inflates the stored quantity. Duplicates are merged once, properly,
+      // by [dedupeMocParts] / [mergeParts] instead.
+      groupedParts[part.part]?.parts.add(part);
     }
 
     return groupedParts;
+  }
+
+  /// Merges duplicate part+colour entries in [moc.parts] in place, summing
+  /// quantity and collected count. Returns true if anything was merged.
+  /// Repairs data corrupted by the old mutate-on-group behaviour.
+  bool dedupeMocParts(Moc moc) {
+    final parts = moc.parts;
+    if (parts == null || parts.isEmpty) return false;
+
+    final byKey = <String, CollectablePart>{};
+    final deduped = <CollectablePart>[];
+    for (final part in parts) {
+      final key = '${part.part}_${part.color}';
+      final existing = byKey[key];
+      if (existing == null) {
+        byKey[key] = part;
+        deduped.add(part);
+      } else {
+        existing.quantity += part.quantity;
+        existing.collectedCount += part.collectedCount;
+      }
+    }
+
+    if (deduped.length == parts.length) return false;
+    moc.parts = deduped;
+    return true;
   }
 
   void orderPart(PartGroup group, BrickPart part) {

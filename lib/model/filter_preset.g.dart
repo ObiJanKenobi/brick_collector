@@ -1182,7 +1182,6 @@ extension FilterPresetQueryProperty
 FilterPreset _$FilterPresetFromJson(Map<String, dynamic> json) => FilterPreset(
       name: json['name'] as String,
     )
-      ..id = (json['id'] as num).toInt()
       ..imageUrl = json['imageUrl'] as String?
       ..categories = (json['categories'] as List<dynamic>?)
           ?.map((e) =>
@@ -1195,7 +1194,6 @@ FilterPreset _$FilterPresetFromJson(Map<String, dynamic> json) => FilterPreset(
 
 Map<String, dynamic> _$FilterPresetToJson(FilterPreset instance) =>
     <String, dynamic>{
-      'id': instance.id,
       'name': instance.name,
       'imageUrl': instance.imageUrl,
       'categories': instance.categories?.map((e) => e.toJson()).toList(),

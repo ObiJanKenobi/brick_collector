@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/filter_preset.dart';
 import 'package:brick_collector/ui/nav_menu.dart';
@@ -5,25 +7,43 @@ import 'package:brick_lib/model/rebrickable_color.dart';
 import 'package:brick_lib/model/rebrickable_part_category.dart';
 
 class PartsFilterScreen extends StatefulWidget {
-  const PartsFilterScreen(this.preset, {super.key});
+  const PartsFilterScreen(this.presetId, {super.key});
 
-  final FilterPreset preset;
+  final String presetId;
 
   @override
   State<StatefulWidget> createState() => PartsFilterScreenState();
 }
 
 class PartsFilterScreenState extends State<PartsFilterScreen> {
-  late final TextEditingController _searchController =
-      TextEditingController(text: widget.preset.searchText ?? '');
+  FilterPreset? _preset;
+  final TextEditingController _searchController = TextEditingController();
+  StreamSubscription<List<FilterPreset>>? _presetsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvePreset(partsLogic.presets);
+    _presetsSub = partsLogic.outPresets.listen(_resolvePreset);
+  }
+
+  void _resolvePreset(List<FilterPreset> presets) {
+    if (_preset != null) return; // first emission to land wins; don't replace mid-edit
+    final found = presets.cast<FilterPreset?>().firstWhere(
+          (p) => p!.firestoreId == widget.presetId,
+          orElse: () => null,
+        );
+    if (found == null) return;
+    _searchController.text = found.searchText ?? '';
+    setState(() => _preset = found);
+  }
 
   @override
   void dispose() {
+    _presetsSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
-
-  FilterPreset get preset => widget.preset;
 
   Widget _sectionHeader(String title) {
     return SliverAppBar(
@@ -36,6 +56,12 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final preset = _preset;
+    if (preset == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       drawer: const Drawer(child: NavMenu()),
       body: CustomScrollView(slivers: [
@@ -66,7 +92,7 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
             stream: partsLogic.outPartCategories,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SliverToBoxAdapter( 
+                return const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(16),
                     child: Center(child: CircularProgressIndicator()),
@@ -80,7 +106,7 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
                 );
               }
               return SliverList.builder(
-                itemBuilder: (context, index) => _buildCategoryTile(items[index]),
+                itemBuilder: (context, index) => _buildCategoryTile(preset, items[index]),
                 itemCount: items.length,
               );
             },
@@ -115,7 +141,7 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
                     childAspectRatio: 2.5,
                   ),
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildColorTile(items[index]),
+                    (context, index) => _buildColorTile(preset, items[index]),
                     childCount: items.length,
                   ),
                 ),
@@ -137,7 +163,7 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
     );
   }
 
-  Widget _buildCategoryTile(RebrickablePartCategory data) {
+  Widget _buildCategoryTile(FilterPreset preset, RebrickablePartCategory data) {
     final selected = preset.categories?.any((e) => e.id == data.id) ?? false;
     return ListTile(
       title: Text(data.name),
@@ -148,7 +174,7 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
             if (val) {
               preset.addCategory(data);
             } else {
-              preset.categories?.removeWhere((e) => e.id == data.id);
+              preset.removeCategory(data.id);
             }
           });
         },
@@ -156,7 +182,7 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
     );
   }
 
-  Widget _buildColorTile(RebrickableColor color) {
+  Widget _buildColorTile(FilterPreset preset, RebrickableColor color) {
     final selected = preset.hasColor(color.id);
     final swatch = HexColor.fromHex('#${color.rgb}');
     final isDark = swatch.computeLuminance() < 0.45;
@@ -204,9 +230,10 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
   }
 
   Future<void> _saveAndView() async {
+    final preset = _preset;
+    if (preset == null) return;
     await partsLogic.savePreset(preset);
-    partsLogic.notifyPresetsChanged();
     if (!mounted) return;
-    context.go(ScreenPaths.presetPage(preset.id));
+    context.go(ScreenPaths.presetPage(preset.firestoreId!));
   }
 }

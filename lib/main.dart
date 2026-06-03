@@ -207,13 +207,12 @@ Future<void> loginUser(BuildContext context) async {
   );
 
   if (!context.mounted) return;
-  if (ok == null) return;
+  // Failure / cancel: the dialog already showed an inline error before popping.
+  if (ok != true) return;
 
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    content: Text(ok ? "Login successful" : "Login failed"),
-  ));
-
-  if (!ok) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Login successful')),
+  );
 
   final lastSync = await collectionSyncService.getLastSyncAt();
   if (lastSync != null) return;
@@ -242,16 +241,39 @@ class _LoginDialogState extends State<_LoginDialog> {
   late final _emailController = TextEditingController(text: _userPrefill ?? '');
   late final _passwordController = TextEditingController(text: _userPasswordPrefill ?? '');
   bool _submitting = false;
+  String? _error;
 
   Future<void> _submit() async {
     final username = _emailController.text.trim();
     final password = _passwordController.text;
-    if (username.isEmpty || password.isEmpty) return;
+    if (username.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Enter both email and password');
+      return;
+    }
 
-    setState(() => _submitting = true);
-    final ok = await appLogic.loginUser(username, password);
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+
+    bool ok = false;
+    String? errorMessage;
+    try {
+      ok = await appLogic.loginUser(username, password);
+    } catch (e) {
+      errorMessage = 'Login failed: $e';
+    }
+
     if (!mounted) return;
-    Navigator.of(context).pop(ok);
+    if (ok) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() {
+      _submitting = false;
+      _error = errorMessage ?? 'Wrong email or password';
+      _passwordController.clear();
+    });
   }
 
   @override
@@ -301,6 +323,22 @@ class _LoginDialogState extends State<_LoginDialog> {
               ),
               onSubmitted: (_) => _submitting ? null : _submit(),
             ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.error_outline, size: 16, color: Color(0xFFE57373)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: Color(0xFFE57373), fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
         actions: [

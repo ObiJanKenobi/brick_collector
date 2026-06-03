@@ -2,9 +2,11 @@ import 'package:brick_collector/model/CollectablePartGroup.dart';
 import 'package:brick_collector/screens/group_setup_screen.dart';
 import 'package:brick_collector/screens/moc_list_screen.dart';
 import 'package:brick_collector/screens/moc_screen.dart';
+import 'package:brick_collector/screens/my_sets_screen.dart';
 import 'package:brick_collector/screens/part_group_screen.dart';
 import 'package:brick_collector/screens/part_summary_screen.dart';
 import 'package:brick_collector/screens/parts_filter_screen.dart';
+import 'package:brick_collector/screens/piece_counter_screen.dart';
 import 'package:brick_collector/screens/preset_list_screen.dart';
 import 'package:brick_collector/screens/preset_screen.dart';
 import 'package:brick_collector/model/collectable_part.dart';
@@ -21,6 +23,8 @@ class ScreenPaths {
   static const String setup = '/setup';
   static const String home = '/home';
   static const String parts = '/parts';
+  static const String mySets = '/sets';
+  static const String pieceCounter = '/count';
   static const String settings = '/settings';
   static const String collected = '/collected';
   static const String detail = '/moc/:id';
@@ -31,11 +35,11 @@ class ScreenPaths {
 
   static String mocPage(String? id) => '/moc/${id ?? 'new'}';
 
-  static String partFilterPage(int id) => '/filter/$id';
+  static String partFilterPage(String id) => '/filter/$id';
 
-  static String partFilterEditPage(int id) => '/filter/edit/$id';
+  static String partFilterEditPage(String id) => '/filter/edit/$id';
 
-  static String presetPage(int id) => '/preset/$id';
+  static String presetPage(String id) => '/preset/$id';
 }
 
 class PartRouteData {
@@ -53,26 +57,43 @@ final appRouter = GoRouter(
     AppRoute(ScreenPaths.setup, (_) => const GroupSetupScreen()),
     AppRoute(ScreenPaths.home, (_) => const MocListScreen()),
     AppRoute(ScreenPaths.parts, (_) => const PresetListScreen()),
+    AppRoute(ScreenPaths.mySets, (_) => const MySetsScreen()),
+    AppRoute(ScreenPaths.pieceCounter, (_) => const PieceCounterScreen()),
     AppRoute('/partgroup/:partNum', (s) {
       final data = s.extra! as PartRouteData;
       return PartGroupScreen(data.group, data.moc);
     }, useFade: true),
     AppRoute('/partsummary/:partNum', (s) {
       final part = s.extra! as CollectablePart;
-      return PartSummaryScreen(part);
+      final qp = s.uri.queryParameters;
+      final colorsParam = qp['colors'];
+      final allColors = qp['all'] == '1';
+      Set<int>? initial;
+      if (colorsParam != null && colorsParam.isNotEmpty) {
+        initial = colorsParam
+            .split(',')
+            .map((e) => int.tryParse(e.trim()))
+            .whereType<int>()
+            .toSet();
+        if (initial.isEmpty) initial = null;
+      } else if (!allColors) {
+        // Legacy single-color entry (e.g. tapping a specific colour chip): the
+        // part's own colour drives the filter.
+        final cid = int.tryParse(part.color ?? '');
+        if (cid != null) initial = {cid};
+      }
+      return PartSummaryScreen(part, initialColorIds: initial);
     }, useFade: true),
     AppRoute('/filter/:id', (s) {
-      final filterId = s.pathParameters["id"];
-      final preset = partsLogic.getPresetById(int.parse(filterId!));
-      return PartsFilterScreen(preset);
+      final filterId = s.pathParameters["id"]!;
+      return PartsFilterScreen(filterId);
     }, useFade: true),
     AppRoute('/filter/edit/:id', (s) {
-      final filterId = s.pathParameters["id"];
-      final preset = partsLogic.getPresetById(int.parse(filterId!));
-      return PartsFilterScreen(preset);
+      final filterId = s.pathParameters["id"]!;
+      return PartsFilterScreen(filterId);
     }, useFade: true),
     AppRoute('/preset/:id', (s) {
-      final id = int.parse(s.pathParameters["id"]!);
+      final id = s.pathParameters["id"]!;
       return PresetScreen(id);
     }, useFade: true),
     AppRoute(ScreenPaths.detail, (s) {

@@ -11,7 +11,7 @@ Brick Collector is a Flutter app for importing LEGO parts from Rebrickable CSV e
 ```bash
 flutter pub get                  # Install dependencies
 flutter run                      # Run on connected device/emulator
-flutter test                     # Run tests (minimal — single widget smoke test)
+flutter test                     # Run tests (logic tests in test/logic/, widget tests in test/ui/)
 flutter analyze                  # Static analysis
 
 # Code generation (Isar models, JSON serialization, Freezed)

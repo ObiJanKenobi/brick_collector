@@ -22,7 +22,7 @@ class _PresetStats {
 
 class PresetListScreenState extends State<PresetListScreen> {
   DateTime? _lastSync;
-  final Map<int, _PresetStats> _stats = {};
+  final Map<String, _PresetStats> _stats = {};
   StreamSubscription<List<FilterPreset>>? _presetsSub;
 
   @override
@@ -46,15 +46,17 @@ class PresetListScreenState extends State<PresetListScreen> {
   }
 
   Future<void> _recomputeStats(List<FilterPreset> presets) async {
-    final results = <int, _PresetStats>{};
+    final results = <String, _PresetStats>{};
     for (final p in presets) {
+      final key = p.firestoreId;
+      if (key == null) continue;
       final rows = await dbLogic.filterInventory(
         categoryIds: (p.categories ?? []).map((c) => c.id).toSet(),
         colorIds: (p.colors ?? []).map((c) => c.id).toSet(),
         searchText: p.searchText,
       );
       final qty = rows.fold<int>(0, (sum, r) => sum + r.quantity);
-      results[p.id] = _PresetStats(rows.length, qty);
+      results[key] = _PresetStats(rows.length, qty);
     }
     if (!mounted) return;
     setState(() {
@@ -141,7 +143,7 @@ class PresetListScreenState extends State<PresetListScreen> {
     final colors = preset.colors ?? const [];
     final search = (preset.searchText ?? '').trim();
 
-    final stats = _stats[preset.id];
+    final stats = preset.firestoreId == null ? null : _stats[preset.firestoreId!];
     final statsLine = stats == null ? '…' : '${stats.partCount} parts · ${stats.totalQty} total';
 
     final rows = <Widget>[
@@ -187,10 +189,11 @@ class PresetListScreenState extends State<PresetListScreen> {
         ),
     ];
 
+    final id = preset.firestoreId;
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
-        onTap: () => context.go(ScreenPaths.presetPage(preset.id)),
+        onTap: id == null ? null : () => context.go(ScreenPaths.presetPage(id)),
         title: Text(preset.name, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,7 +203,7 @@ class PresetListScreenState extends State<PresetListScreen> {
         trailing: IconButton(
           tooltip: 'Edit filter',
           icon: const Icon(Icons.tune, color: AppColors.textSecondary),
-          onPressed: () => context.go(ScreenPaths.partFilterEditPage(preset.id)),
+          onPressed: id == null ? null : () => context.go(ScreenPaths.partFilterEditPage(id)),
         ),
       ),
     );
@@ -257,7 +260,7 @@ class PresetListScreenState extends State<PresetListScreen> {
     if (text == null || text.isEmpty || text.first.trim().isEmpty) return;
     final preset = await partsLogic.addNewPreset(text.first.trim());
     if (!mounted) return;
-    context.go(ScreenPaths.partFilterEditPage(preset.id));
+    context.go(ScreenPaths.partFilterEditPage(preset.firestoreId!));
   }
 
   Future<void> _syncCollection() async {

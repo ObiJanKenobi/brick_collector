@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/logic/db_logic.dart';
 import 'package:brick_collector/model/collectable_part.dart';
@@ -10,7 +12,7 @@ import 'package:brick_collector/ui/part_group_card.dart';
 class PresetScreen extends StatefulWidget {
   const PresetScreen(this.presetId, {super.key});
 
-  final int presetId;
+  final String presetId;
 
   @override
   State<StatefulWidget> createState() => _PresetScreenState();
@@ -21,11 +23,25 @@ class _PresetScreenState extends State<PresetScreen> {
   List<AggregatedInventoryRow> _rows = [];
   DateTime? _lastSync;
   FilterPreset? _preset;
+  StreamSubscription<List<FilterPreset>>? _presetsSub;
 
   @override
   void initState() {
     super.initState();
+    // Re-run the filter query whenever the preset list emits (initial Firestore
+    // load, edits saved on the filter screen, or rename/delete from this
+    // screen). _load is a no-op if the preset can't be found in the snapshot.
+    _presetsSub = partsLogic.outPresets.listen((_) {
+      if (!mounted) return;
+      _load();
+    });
     _load();
+  }
+
+  @override
+  void dispose() {
+    _presetsSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -46,13 +62,7 @@ class _PresetScreenState extends State<PresetScreen> {
     });
   }
 
-  FilterPreset? _lookupPreset() {
-    try {
-      return partsLogic.getPresetById(widget.presetId);
-    } catch (_) {
-      return null;
-    }
-  }
+  FilterPreset? _lookupPreset() => partsLogic.getPresetById(widget.presetId);
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +130,7 @@ class _PresetScreenState extends State<PresetScreen> {
               tooltip: 'Sync collection',
             ),
             IconButton(
-              onPressed: () => context.push(ScreenPaths.partFilterEditPage(preset.id)),
+              onPressed: () => context.push(ScreenPaths.partFilterEditPage(preset.firestoreId!)),
               icon: const Icon(Icons.tune),
               tooltip: 'Edit filter',
             ),
@@ -205,7 +215,6 @@ class _PresetScreenState extends State<PresetScreen> {
     if (newName.isEmpty) return;
     preset.name = newName;
     await partsLogic.savePreset(preset);
-    partsLogic.notifyPresetsChanged();
     if (!mounted) return;
     setState(() {});
   }

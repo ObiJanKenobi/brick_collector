@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:brick_collector/common_libs.dart';
 
@@ -18,6 +20,20 @@ class MocCardState extends State<MocCard> {
     return moc.collectedCount / moc.quantity;
   }
 
+  // Cache decoded bytes by base64 string so we don't re-decode on every rebuild.
+  static final Map<String, Uint8List> _decodedCache = {};
+  Uint8List? _decodeImageBase64(String b64) {
+    final cached = _decodedCache[b64];
+    if (cached != null) return cached;
+    try {
+      final bytes = base64Decode(b64);
+      _decodedCache[b64] = bytes;
+      return bytes;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -32,28 +48,8 @@ class MocCardState extends State<MocCard> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Background: image or fallback
-            if (moc.imageUrl != null)
-              CachedNetworkImage(
-                imageUrl: moc.imageUrl!,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: AppColors.navItemBgColor,
-                  child: const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white38,
-                      ),
-                    ),
-                  ),
-                ),
-                errorWidget: (context, url, error) => _buildFallbackBackground(),
-              )
-            else
-              _buildFallbackBackground(),
+            // Background: inline image, URL, or fallback (in that order)
+            _buildBackground(),
 
             // Gradient overlay
             Container(
@@ -150,6 +146,44 @@ class MocCardState extends State<MocCard> {
         ),
       ),
     );
+  }
+
+  Widget _buildBackground() {
+    final b64 = moc.imageBase64;
+    if (b64 != null && b64.isNotEmpty) {
+      final bytes = _decodeImageBase64(b64);
+      if (bytes != null) {
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => _buildFallbackBackground(),
+        );
+      }
+    }
+    final url = moc.imageUrl;
+    if (url != null && url.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        placeholder: (context, _) => Container(
+          color: AppColors.navItemBgColor,
+          child: const Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white38,
+              ),
+            ),
+          ),
+        ),
+        errorWidget: (context, _, __) => _buildFallbackBackground(),
+      );
+    }
+    return _buildFallbackBackground();
   }
 
   Widget _buildFallbackBackground() {

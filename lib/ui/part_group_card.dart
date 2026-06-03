@@ -39,14 +39,27 @@ class PartGroupCardState extends State<PartGroupCard> {
 
   bool get _isComplete => group.collectedCount >= group.quantity;
 
+  bool get _shopping => moc?.shoppingMode == true;
+  bool get _gobricksAvailable =>
+      group.parts.isNotEmpty && group.parts.any((p) => !p.noMapping);
+
   List<String> _candidates = const [];
   NeededColor? _topNeed;
   String? _lastKey;
+
+  /// Owned quantity from the local inventory cache, keyed by "part_color".
+  /// Only populated in shopping mode so the user sees how many they already
+  /// have next to the needed count without opening the part.
+  final Map<String, int> _inventoryCounts = {};
+  bool _inventoryLoading = false;
+
+  String _inventoryKey(CollectablePart part) => "${part.part}_${part.color}";
 
   @override
   void initState() {
     super.initState();
     _reload();
+    _maybeLoadInventoryCounts();
   }
 
   @override
@@ -54,7 +67,43 @@ class PartGroupCardState extends State<PartGroupCard> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.group.partNum != group.partNum || !_sameColors(oldWidget.group.parts, group.parts)) {
       _reload();
+      _inventoryCounts.clear();
     }
+    // Shopping mode toggles in-place on the same Moc instance, so initState
+    // won't re-run for an already-built card. Trigger the load lazily here too.
+    _maybeLoadInventoryCounts();
+  }
+
+  /// Loads owned counts once when shopping mode is (or becomes) active, using
+  /// the same indexed per-part lookup the detail screen uses.
+  void _maybeLoadInventoryCounts() {
+    if (!_shopping || _inventoryLoading || _inventoryCounts.isNotEmpty) return;
+    _loadInventoryCounts();
+  }
+
+  Future<void> _loadInventoryCounts() async {
+    _inventoryLoading = true;
+    final counts = await Future.wait(group.parts.map((part) async {
+      final partNum = part.part;
+      final colorId = int.tryParse(part.color ?? '');
+      if (partNum == null || colorId == null) {
+        return MapEntry(_inventoryKey(part), 0);
+      }
+      final items = await dbLogic.findItemsForPart(partNum, colorId: colorId);
+      final count = items.fold<int>(0, (sum, i) => sum + i.quantity);
+      return MapEntry(_inventoryKey(part), count);
+    }));
+
+    if (!mounted) {
+      _inventoryLoading = false;
+      return;
+    }
+    setState(() {
+      for (final entry in counts) {
+        _inventoryCounts[entry.key] = entry.value;
+      }
+      _inventoryLoading = false;
+    });
   }
 
   bool _sameColors(List a, List b) {
@@ -124,6 +173,8 @@ class PartGroupCardState extends State<PartGroupCard> {
         ? b.quantity.compareTo(a.quantity)
         : (a.colorName ?? '').compareTo(b.colorName ?? ''));
 
+    final dim = _shopping && !_gobricksAvailable;
+
     return Card(
       clipBehavior: Clip.antiAlias,
       margin: const EdgeInsets.only(bottom: 6),
@@ -135,40 +186,112 @@ class PartGroupCardState extends State<PartGroupCard> {
           if (m != null) {
             context.push(ScreenPaths.partGroup(group.partNum), extra: PartRouteData(group, m));
           } else if (group.parts.isNotEmpty) {
-            context.push(ScreenPaths.partSummary(group.partNum), extra: group.parts.first);
+            // Tapping the card header opens the part summary scoped to exactly
+            // the colours visible on this card (i.e. the preset's filter). With
+            // no colour info the query falls back to "all colours".
+            final colorIds = group.parts
+                .map((p) => int.tryParse(p.color ?? ''))
+                .whereType<int>()
+                .toSet();
+            final query = colorIds.isEmpty
+                ? '?all=1'
+                : '?colors=${colorIds.join(',')}';
+            context.push(
+              '${ScreenPaths.partSummary(group.partNum)}$query',
+              extra: group.parts.first,
+            );
           }
         },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: _positive ? _buildCompactLayout(sorted) : _buildMocLayout(sorted),
+        child: Opacity(
+          opacity: dim ? 0.55 : 1.0,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: _positive ? _buildCompactLayout(sorted) : _buildMocLayout(sorted),
+          ),
         ),
       ),
     );
   }
 
   Widget _partImage(double size, double iconSize) {
-    return Hero(
-      tag: "part-img-${group.partNum}",
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: SmartPartImage(
-            candidates: _candidates.isNotEmpty
-                ? _candidates
-                : (group.imgUrl.isNotEmpty ? [group.imgUrl] : const []),
-            onExhausted: _topNeed == null
-                ? null
-                : () => PartImageResolver.fetchApiUrl(group.partNum, _topNeed!.colorId),
-            fallback: Icon(Icons.widgets_outlined, color: AppColors.textSecondary, size: iconSize),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Hero(
+          tag: "part-img-${group.partNum}",
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SmartPartImage(
+                candidates: _candidates.isNotEmpty
+                    ? _candidates
+                    : (group.imgUrl.isNotEmpty ? [group.imgUrl] : const []),
+                onExhausted: _topNeed == null
+                    ? null
+                    : () => PartImageResolver.fetchApiUrl(group.partNum, _topNeed!.colorId),
+                fallback: Icon(Icons.widgets_outlined, color: AppColors.textSecondary, size: iconSize),
+              ),
+            ),
           ),
         ),
+        if (_shopping)
+          Positioned(
+            top: -4,
+            right: -4,
+            child: _gobricksBadge(_gobricksAvailable),
+          ),
+      ],
+    );
+  }
+
+  Widget _gobricksBadge(bool available) {
+    final Color color = available ? const Color(0xFF7BC043) : AppColors.textSecondary;
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.surface, width: 2),
       ),
+      child: Icon(
+        available ? Icons.check : Icons.close,
+        size: 12,
+        color: Colors.white,
+      ),
+    );
+  }
+
+  /// Shows how many of this part/color the user already owns (from the local
+  /// inventory cache). Green once the owned quantity covers what's still needed.
+  Widget _ownedBadge(CollectablePart part) {
+    final key = _inventoryKey(part);
+    final owned = _inventoryCounts[key];
+    if (owned == null) {
+      return const SizedBox(
+        width: 12,
+        height: 12,
+        child: CircularProgressIndicator(strokeWidth: 1.5),
+      );
+    }
+    final bool covered = owned >= part.remaining;
+    final Color color = covered ? Colors.greenAccent : AppColors.highlightColor;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.inventory_2_outlined, size: 12, color: color),
+        const SizedBox(width: 2),
+        Text(
+          '$owned',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+        ),
+      ],
     );
   }
 
@@ -265,7 +388,7 @@ class PartGroupCardState extends State<PartGroupCard> {
 
     return GestureDetector(
       onTap: () {
-        if (_positive) {
+        if (_positive || _shopping) {
           context.push(ScreenPaths.partSummary(part.part ?? ''), extra: part);
         } else {
           _showCollectModal(part);
@@ -326,6 +449,10 @@ class PartGroupCardState extends State<PartGroupCard> {
                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
                   ),
+                  if (_shopping) ...[
+                    const SizedBox(width: 6),
+                    _ownedBadge(part),
+                  ],
                   const SizedBox(width: 6),
                   Container(
                     width: 36,

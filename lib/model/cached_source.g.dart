@@ -17,39 +17,44 @@ const CachedSourceSchema = CollectionSchema(
   name: r'CachedSource',
   id: -2910616488437474326,
   properties: {
-    r'externalId': PropertySchema(
+    r'excludeFromInventory': PropertySchema(
       id: 0,
+      name: r'excludeFromInventory',
+      type: IsarType.bool,
+    ),
+    r'externalId': PropertySchema(
+      id: 1,
       name: r'externalId',
       type: IsarType.string,
     ),
     r'imgUrl': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'imgUrl',
       type: IsarType.string,
     ),
     r'name': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'name',
       type: IsarType.string,
     ),
     r'numParts': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'numParts',
       type: IsarType.long,
     ),
     r'ownedQuantity': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'ownedQuantity',
       type: IsarType.long,
     ),
     r'type': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'type',
       type: IsarType.string,
       enumMap: _CachedSourcetypeEnumValueMap,
     ),
     r'year': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'year',
       type: IsarType.long,
     )
@@ -111,13 +116,14 @@ void _cachedSourceSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.externalId);
-  writer.writeString(offsets[1], object.imgUrl);
-  writer.writeString(offsets[2], object.name);
-  writer.writeLong(offsets[3], object.numParts);
-  writer.writeLong(offsets[4], object.ownedQuantity);
-  writer.writeString(offsets[5], object.type.name);
-  writer.writeLong(offsets[6], object.year);
+  writer.writeBool(offsets[0], object.excludeFromInventory);
+  writer.writeString(offsets[1], object.externalId);
+  writer.writeString(offsets[2], object.imgUrl);
+  writer.writeString(offsets[3], object.name);
+  writer.writeLong(offsets[4], object.numParts);
+  writer.writeLong(offsets[5], object.ownedQuantity);
+  writer.writeString(offsets[6], object.type.name);
+  writer.writeLong(offsets[7], object.year);
 }
 
 CachedSource _cachedSourceDeserialize(
@@ -127,16 +133,17 @@ CachedSource _cachedSourceDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = CachedSource();
-  object.externalId = reader.readString(offsets[0]);
+  object.excludeFromInventory = reader.readBool(offsets[0]);
+  object.externalId = reader.readString(offsets[1]);
   object.id = id;
-  object.imgUrl = reader.readStringOrNull(offsets[1]);
-  object.name = reader.readString(offsets[2]);
-  object.numParts = reader.readLong(offsets[3]);
-  object.ownedQuantity = reader.readLong(offsets[4]);
+  object.imgUrl = reader.readStringOrNull(offsets[2]);
+  object.name = reader.readString(offsets[3]);
+  object.numParts = reader.readLong(offsets[4]);
+  object.ownedQuantity = reader.readLong(offsets[5]);
   object.type =
-      _CachedSourcetypeValueEnumMap[reader.readStringOrNull(offsets[5])] ??
+      _CachedSourcetypeValueEnumMap[reader.readStringOrNull(offsets[6])] ??
           CachedSourceType.set;
-  object.year = reader.readLong(offsets[6]);
+  object.year = reader.readLong(offsets[7]);
   return object;
 }
 
@@ -148,19 +155,21 @@ P _cachedSourceDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readString(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 1:
-      return (reader.readStringOrNull(offset)) as P;
-    case 2:
       return (reader.readString(offset)) as P;
+    case 2:
+      return (reader.readStringOrNull(offset)) as P;
     case 3:
-      return (reader.readLong(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 4:
       return (reader.readLong(offset)) as P;
     case 5:
+      return (reader.readLong(offset)) as P;
+    case 6:
       return (_CachedSourcetypeValueEnumMap[reader.readStringOrNull(offset)] ??
           CachedSourceType.set) as P;
-    case 6:
+    case 7:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -451,6 +460,16 @@ extension CachedSourceQueryWhere
 
 extension CachedSourceQueryFilter
     on QueryBuilder<CachedSource, CachedSource, QFilterCondition> {
+  QueryBuilder<CachedSource, CachedSource, QAfterFilterCondition>
+      excludeFromInventoryEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'excludeFromInventory',
+        value: value,
+      ));
+    });
+  }
+
   QueryBuilder<CachedSource, CachedSource, QAfterFilterCondition>
       externalIdEqualTo(
     String value, {
@@ -1236,6 +1255,20 @@ extension CachedSourceQueryLinks
 
 extension CachedSourceQuerySortBy
     on QueryBuilder<CachedSource, CachedSource, QSortBy> {
+  QueryBuilder<CachedSource, CachedSource, QAfterSortBy>
+      sortByExcludeFromInventory() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'excludeFromInventory', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CachedSource, CachedSource, QAfterSortBy>
+      sortByExcludeFromInventoryDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'excludeFromInventory', Sort.desc);
+    });
+  }
+
   QueryBuilder<CachedSource, CachedSource, QAfterSortBy> sortByExternalId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'externalId', Sort.asc);
@@ -1325,6 +1358,20 @@ extension CachedSourceQuerySortBy
 
 extension CachedSourceQuerySortThenBy
     on QueryBuilder<CachedSource, CachedSource, QSortThenBy> {
+  QueryBuilder<CachedSource, CachedSource, QAfterSortBy>
+      thenByExcludeFromInventory() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'excludeFromInventory', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CachedSource, CachedSource, QAfterSortBy>
+      thenByExcludeFromInventoryDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'excludeFromInventory', Sort.desc);
+    });
+  }
+
   QueryBuilder<CachedSource, CachedSource, QAfterSortBy> thenByExternalId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'externalId', Sort.asc);
@@ -1426,6 +1473,13 @@ extension CachedSourceQuerySortThenBy
 
 extension CachedSourceQueryWhereDistinct
     on QueryBuilder<CachedSource, CachedSource, QDistinct> {
+  QueryBuilder<CachedSource, CachedSource, QDistinct>
+      distinctByExcludeFromInventory() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'excludeFromInventory');
+    });
+  }
+
   QueryBuilder<CachedSource, CachedSource, QDistinct> distinctByExternalId(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1479,6 +1533,13 @@ extension CachedSourceQueryProperty
   QueryBuilder<CachedSource, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<CachedSource, bool, QQueryOperations>
+      excludeFromInventoryProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'excludeFromInventory');
     });
   }
 

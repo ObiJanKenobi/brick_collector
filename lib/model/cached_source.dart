@@ -20,4 +20,9 @@ class CachedSource {
   int numParts = 0;
   int ownedQuantity = 1;
   int year = 0;
+
+  /// Locally-set flag to keep this source's parts out of inventory/available
+  /// counts. Rebrickable's API doesn't expose its "Build" selection, so the
+  /// user toggles this per-set in the "My Sets" screen.
+  bool excludeFromInventory = false;
 }

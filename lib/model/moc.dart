@@ -14,6 +14,7 @@ class Moc {
 
   String name;
   String? imageUrl;
+  String? imageBase64;
   String? sourceUrl;
 
   List<CollectablePart>? parts;
@@ -25,6 +26,8 @@ class Moc {
   bool hideComplete = false;
   @JsonKey(defaultValue: false)
   bool hideCompleteGroup = false;
+  @JsonKey(defaultValue: false)
+  bool shoppingMode = false;
 
   int get quantity => parts?.fold(0, (previousValue, element) => (previousValue ?? 0) + element.quantity) ?? 0;
 

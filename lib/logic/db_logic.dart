@@ -45,30 +45,45 @@ class DbLogic {
     );
   }
 
-  Future<List<FilterPreset>> getPresets() async {
-    final presets = await _isar.filterPresets.where().findAll();
-    return presets;
+  // --- Legacy local presets (read-only — kept for one-time migration to Firestore) ---
+
+  Future<List<FilterPreset>> readLegacyLocalPresets() async {
+    return _isar.filterPresets.where().findAll();
   }
 
-  savePreset(FilterPreset newPreset) async {
+  Future<void> clearLegacyLocalPresets() async {
     await _isar.writeTxn(() async {
-      await _isar.filterPresets.put(newPreset);
-    });
-  }
-
-  deletePreset(FilterPreset preset) async {
-    await _isar.writeTxn(() async {
-      await _isar.filterPresets.delete(preset.id);
+      await _isar.filterPresets.clear();
     });
   }
 
   // --- Inventory cache ---
+
+  /// Source keys ("type_externalId") the user has excluded from inventory
+  /// counts. Cached in memory so the frequently-called inventory queries don't
+  /// re-read the sources table on every lookup.
+  Set<String>? _excludedSourceKeys;
+
+  String _sourceKey(CachedSourceType type, String externalId) => '${type.name}_$externalId';
+
+  String _itemSourceKey(CachedInventoryItem it) => _sourceKey(it.sourceType, it.sourceExternalId);
+
+  Future<Set<String>> _loadExcludedSourceKeys() async {
+    final cached = _excludedSourceKeys;
+    if (cached != null) return cached;
+    final excluded = await _isar.cachedSources.filter().excludeFromInventoryEqualTo(true).findAll();
+    final keys = excluded.map((s) => _sourceKey(s.type, s.externalId)).toSet();
+    return _excludedSourceKeys = keys;
+  }
+
+  void _invalidateExcludedSourceKeys() => _excludedSourceKeys = null;
 
   Future<void> clearInventoryCache() async {
     await _isar.writeTxn(() async {
       await _isar.cachedSources.clear();
       await _isar.cachedInventoryItems.clear();
     });
+    _invalidateExcludedSourceKeys();
   }
 
   Future<void> upsertSource(CachedSource source) async {
@@ -95,12 +110,23 @@ class DbLogic {
     });
   }
 
-  Future<List<CachedInventoryItem>> findItemsForPart(String partNum, {int? colorId}) async {
+  /// Items for a part across all sources. By default sources the user excluded
+  /// from inventory are filtered out (so counts ignore them); pass
+  /// [includeExcluded] to get every source — the caller can then check
+  /// `CachedSource.excludeFromInventory` to render excluded ones differently.
+  Future<List<CachedInventoryItem>> findItemsForPart(
+    String partNum, {
+    int? colorId,
+    bool includeExcluded = false,
+  }) async {
     var query = _isar.cachedInventoryItems.filter().partNumEqualTo(partNum);
-    if (colorId != null) {
-      return await query.and().colorIdEqualTo(colorId).findAll();
-    }
-    return await query.findAll();
+    final items = colorId != null
+        ? await query.and().colorIdEqualTo(colorId).findAll()
+        : await query.findAll();
+    if (includeExcluded) return items;
+    final excluded = await _loadExcludedSourceKeys();
+    if (excluded.isEmpty) return items;
+    return items.where((it) => !excluded.contains(_itemSourceKey(it))).toList();
   }
 
   Future<CachedSource?> getSource(CachedSourceType type, String externalId) async {
@@ -110,6 +136,22 @@ class DbLogic {
         .and()
         .externalIdEqualTo(externalId)
         .findFirst();
+  }
+
+  /// All cached sources of [type], sorted by name. Backs the "My Sets" screen.
+  Future<List<CachedSource>> getSourcesByType(CachedSourceType type) async {
+    return _isar.cachedSources.filter().typeEqualTo(type).sortByName().findAll();
+  }
+
+  /// Toggle whether a source's parts count toward inventory/available totals.
+  Future<void> setSourceExcluded(int id, bool excluded) async {
+    await _isar.writeTxn(() async {
+      final src = await _isar.cachedSources.get(id);
+      if (src == null) return;
+      src.excludeFromInventory = excluded;
+      await _isar.cachedSources.put(src);
+    });
+    _invalidateExcludedSourceKeys();
   }
 
   /// Filter & aggregate the inventory cache by preset criteria. Returns one row
@@ -122,10 +164,12 @@ class DbLogic {
     String? searchText,
   }) async {
     final rows = await _isar.cachedInventoryItems.where().findAll();
+    final excluded = await _loadExcludedSourceKeys();
     final search = (searchText ?? '').trim().toLowerCase();
     final aggregated = <String, AggregatedInventoryRow>{};
 
     for (final it in rows) {
+      if (excluded.contains(_itemSourceKey(it))) continue;
       if (colorIds.isNotEmpty && !colorIds.contains(it.colorId)) continue;
       if (categoryIds.isNotEmpty &&
           (it.partCategoryId == null || !categoryIds.contains(it.partCategoryId!))) continue;
@@ -203,6 +247,34 @@ class DbLogic {
   Future<void> deleteMoc(Moc moc) async {
     if (moc.firestoreId != null) {
       await _mocsRef.doc(moc.firestoreId).delete();
+    }
+  }
+
+  // --- Firestore (FilterPresets) ---
+
+  CollectionReference get _presetsRef => FirebaseFirestore.instance
+      .collection('groups')
+      .doc(GroupService.instance.groupCode)
+      .collection('presets');
+
+  Stream<List<FilterPreset>> watchPresets() {
+    return _presetsRef.snapshots().map(
+          (snapshot) => snapshot.docs.map(FilterPreset.fromFirestore).toList(),
+        );
+  }
+
+  Future<void> savePreset(FilterPreset preset) async {
+    if (preset.firestoreId != null) {
+      await _presetsRef.doc(preset.firestoreId).set(preset.toJson());
+    } else {
+      final docRef = await _presetsRef.add(preset.toJson());
+      preset.firestoreId = docRef.id;
+    }
+  }
+
+  Future<void> deletePreset(FilterPreset preset) async {
+    if (preset.firestoreId != null) {
+      await _presetsRef.doc(preset.firestoreId).delete();
     }
   }
 }
