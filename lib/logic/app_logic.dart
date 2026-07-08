@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/CollectablePartGroup.dart';
 import 'package:brick_collector/model/collectable_part.dart';
+import 'package:brick_collector/services/group_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,9 +35,32 @@ class AppLogic {
     await _migrateCacheIfNeeded();
     await _restoreLogin();
 
+    // Keep set/partlist exclusions in sync across devices (same pattern as
+    // the preset stream in PartsLogic).
+    _resubscribeExclusions();
+    GroupService.instance.activeGroupNotifier.addListener(_resubscribeExclusions);
+
     isBootstrapComplete = true;
 
     appRouter.go(ScreenPaths.home);
+  }
+
+  StreamSubscription<Set<String>?>? _exclusionsSub;
+
+  void _resubscribeExclusions() {
+    _exclusionsSub?.cancel();
+    _exclusionsSub = null;
+    if (!GroupService.instance.hasGroup) return;
+
+    _exclusionsSub = dbLogic.watchExcludedSourceKeys().listen((keys) async {
+      if (keys == null) {
+        // Doc doesn't exist yet for this group: seed it from whatever this
+        // device has excluded locally (no-op when nothing is excluded).
+        await dbLogic.pushLocalExclusionsToFirestore();
+        return;
+      }
+      await dbLogic.applyExcludedSourceKeys(keys);
+    }, onError: (Object e) => log.w('exclusions stream error: $e'));
   }
 
   Future<void> _migrateCacheIfNeeded() async {
@@ -65,32 +91,65 @@ class AppLogic {
   reset() {}
 
   Future<List<BrickPart>?> loadFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv'], allowMultiple: true);
-    if (result != null) {
-      final allParts = <BrickPart>[];
-      for (var i = 0; i < result.files.length; ++i) {
-        final fileRef = result.files[i];
-
-        File file = File(fileRef.path!);
-
-        log.i("Loading parts from ${fileRef.name}");
-
-        // final filenameWithoutExtension =
-        //     result.files.single.name.split(".csv")[0];
-        // mocName = filenameWithoutExtension.replaceFirst("rebrickable_parts_", "");
-
-        String content = await file.readAsString();
-        List<String> csvLines = const LineSplitter().convert(content);
-        final List<BrickPart> parts = await brickConverterLogic.parseParts(csvLines);
-
-        allParts.addAll(parts);
-      }
-
-      return allParts;
-    } else {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      // .io is a LEGO Studio project (a ZIP holding an LDraw model); .csv is a
+      // Rebrickable or Studio part-list export.
+      allowedExtensions: ['csv', 'io'],
+      allowMultiple: true,
+    );
+    if (result == null) {
       // User canceled the picker
       return null;
     }
+
+    final allParts = <BrickPart>[];
+    for (final fileRef in result.files) {
+      log.i("Loading parts from ${fileRef.name}");
+      try {
+        final parts = fileRef.name.toLowerCase().endsWith('.io')
+            ? await _parseStudioIoFile(fileRef)
+            : await _parseCsvFile(fileRef);
+        allParts.addAll(parts);
+      } catch (e) {
+        log.w("Failed to import ${fileRef.name}: $e");
+      }
+    }
+
+    return allParts;
+  }
+
+  Future<List<BrickPart>> _parseCsvFile(PlatformFile fileRef) async {
+    final content = await _readAsString(fileRef);
+    final csvLines = const LineSplitter().convert(content);
+    return brickConverterLogic.parseParts(csvLines);
+  }
+
+  /// A Studio `.io` file is a ZIP archive; `model.ldr` inside it is the LDraw
+  /// representation of the build, which [BrickConverterLogic.parseLdr] flattens
+  /// into a part list.
+  Future<List<BrickPart>> _parseStudioIoFile(PlatformFile fileRef) async {
+    final bytes = await _readAsBytes(fileRef);
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final ldr = archive.findFile('model.ldr');
+    if (ldr == null) {
+      throw const FormatException('Not a Studio model: model.ldr is missing');
+    }
+    final content = utf8.decode(ldr.content, allowMalformed: true);
+    final ldrLines = const LineSplitter().convert(content);
+    return brickConverterLogic.parseLdr(ldrLines);
+  }
+
+  Future<String> _readAsString(PlatformFile fileRef) async {
+    final bytes = fileRef.bytes;
+    if (bytes != null) return utf8.decode(bytes, allowMalformed: true);
+    return File(fileRef.path!).readAsString();
+  }
+
+  Future<List<int>> _readAsBytes(PlatformFile fileRef) async {
+    final bytes = fileRef.bytes;
+    if (bytes != null) return bytes;
+    return File(fileRef.path!).readAsBytes();
   }
 
   Map<String, CollectablePartGroup> groupParts(List<CollectablePart> parts) {

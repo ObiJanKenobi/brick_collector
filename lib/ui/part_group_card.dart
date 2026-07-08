@@ -3,6 +3,7 @@ import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/notifications/save_moc_notification.dart';
 import 'package:brick_collector/services/part_image_resolver.dart';
 import 'package:brick_collector/ui/app_colors.dart';
+import 'package:brick_collector/ui/color_count_chip.dart';
 import 'package:brick_collector/ui/modals/collect_modal.dart';
 import 'package:brick_collector/ui/smart_part_image.dart';
 import 'package:brick_collector/ui/StripedContainer.dart';
@@ -169,9 +170,8 @@ class PartGroupCardState extends State<PartGroupCard> {
   @override
   Widget build(BuildContext context) {
     final sorted = <CollectablePart>[...group.parts];
-    sorted.sort((a, b) => _positive
-        ? b.quantity.compareTo(a.quantity)
-        : (a.colorName ?? '').compareTo(b.colorName ?? ''));
+    sorted.sort((a, b) =>
+        (a.colorName ?? '').toLowerCase().compareTo((b.colorName ?? '').toLowerCase()));
 
     final dim = _shopping && !_gobricksAvailable;
 
@@ -381,14 +381,28 @@ class PartGroupCardState extends State<PartGroupCard> {
 
   Widget _buildColorChip(BuildContext context, CollectablePart part) {
     final bool anyColor = part.color == "9999" || part.colorName == "No Color/Any Color";
+
+    // Preset detail layout uses the shared swatch + fixed-width name chip so it
+    // matches the part detail screen's "by colour" view. Tapping opens the part
+    // summary for this colour.
+    if (_positive) {
+      return ColorCountChip(
+        quantity: part.quantity,
+        rgb: part.rgb,
+        colorName: part.colorName,
+        anyColor: anyColor,
+        onTap: () => context.push(ScreenPaths.partSummary(part.part ?? ''), extra: part),
+      );
+    }
+
     final Color color = anyColor ? Colors.grey : HexColor.fromHex(part.rgb!);
-    final bool completed = _positive ? false : part.completed;
+    final bool completed = part.completed;
     final bool isDark = color.computeLuminance() < 0.4;
-    final String label = _positive ? '${part.quantity}' : (completed ? '\u2713' : '-${part.remaining}');
+    final String label = completed ? '\u2713' : '-${part.remaining}';
 
     return GestureDetector(
       onTap: () {
-        if (_positive || _shopping) {
+        if (_shopping) {
           context.push(ScreenPaths.partSummary(part.part ?? ''), extra: part);
         } else {
           _showCollectModal(part);
@@ -398,94 +412,52 @@ class PartGroupCardState extends State<PartGroupCard> {
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: _positive
-              ? [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                    ),
-                    child: Center(
-                      child: anyColor
-                          ? Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                const SizedBox(width: 30, height: 30, child: DiagonalStripePatternView()),
-                                Text(label,
-                                    style: const TextStyle(
-                                        fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                              ],
-                            )
-                          : Text(
-                              label,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? Colors.white : Colors.black87,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  SizedBox(
-                    width: 140,
-                    child: Text(
-                      part.colorName ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                  ),
-                ]
-              : [
-                  Flexible(
-                    child: Text(
-                      part.colorName ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                  ),
-                  if (_shopping) ...[
-                    const SizedBox(width: 6),
-                    _ownedBadge(part),
-                  ],
-                  const SizedBox(width: 6),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: completed ? color.withValues(alpha: 0.35) : color,
-                      borderRadius: BorderRadius.circular(6),
-                      border: completed
-                          ? Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5)
-                          : Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                    ),
-                    child: Center(
-                      child: anyColor && !completed
-                          ? Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                const SizedBox(width: 30, height: 30, child: DiagonalStripePatternView()),
-                                Text(label,
-                                    style: const TextStyle(
-                                        fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                              ],
-                            )
-                          : Text(
-                              label,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: completed ? Colors.greenAccent : (isDark ? Colors.white : Colors.black87),
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
+          children: [
+            Flexible(
+              child: Text(
+                part.colorName ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ),
+            if (_shopping) ...[
+              const SizedBox(width: 6),
+              _ownedBadge(part),
+            ],
+            const SizedBox(width: 6),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: completed ? color.withValues(alpha: 0.35) : color,
+                borderRadius: BorderRadius.circular(6),
+                border: completed
+                    ? Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5)
+                    : Border.all(color: Colors.white.withValues(alpha: 0.15)),
+              ),
+              child: Center(
+                child: anyColor && !completed
+                    ? Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const SizedBox(width: 30, height: 30, child: DiagonalStripePatternView()),
+                          Text(label,
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                        ],
+                      )
+                    : Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: completed ? Colors.greenAccent : (isDark ? Colors.white : Colors.black87),
+                        ),
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );

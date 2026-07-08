@@ -5,6 +5,7 @@ import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 import 'package:brick_collector/services/part_image_resolver.dart';
 import 'package:brick_collector/ui/back_button.dart';
+import 'package:brick_collector/ui/color_count_chip.dart';
 import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
 import 'package:brick_collector/ui/smart_part_image.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -33,6 +34,20 @@ class _SourceRow {
   int get totalQuantity => items.fold(0, (sum, i) => sum + i.quantity);
 }
 
+/// Aggregated owned quantity for a single colour across every counted source.
+class _ColorCount {
+  _ColorCount({required this.colorId, this.colorName, this.rgb, this.quantity = 0});
+  final int colorId;
+  String? colorName;
+  String? rgb;
+  int quantity;
+}
+
+/// In "all colours" mode the body can either list sources (each with its
+/// per-colour chips) or roll everything up into combined counts per colour —
+/// mirroring the preset detail page.
+enum _ViewMode { sets, colors }
+
 class _PartSummaryScreenState extends State<PartSummaryScreen> {
   late Set<int>? _filterColorIds = widget.initialColorIds == null
       ? null
@@ -46,6 +61,11 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
   /// Color names keyed by id; populated from the active inventory cache so the
   /// chip and header text can show the color name without an extra lookup.
   final Map<int, String> _colorNames = {};
+
+  /// Set-vs-colour view selector. Only surfaced (and only applied) in the
+  /// "all colours" filter state; picking a single colour always falls back to
+  /// the source list.
+  _ViewMode _viewMode = _ViewMode.sets;
 
   bool _loading = true;
   List<_SourceRow> _rows = [];
@@ -266,6 +286,8 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
         children: [
           _buildHeader(part, headerColor),
           _buildFilterRow(),
+          if (_filterColorIds == null && !_loading && _rows.isNotEmpty)
+            _buildViewToggleRow(),
           if (_lastSyncAt == null && !_loading) _buildEmptyBanner(),
           Expanded(child: _buildBody()),
         ],
@@ -470,11 +492,128 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
         ),
       );
     }
+    if (_filterColorIds == null && _viewMode == _ViewMode.colors) {
+      return _buildByColorView();
+    }
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       itemCount: _rows.length,
       separatorBuilder: (_, __) => const SizedBox(height: 6),
       itemBuilder: (context, i) => _buildRow(_rows[i]),
+    );
+  }
+
+  Widget _buildViewToggleRow() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _viewToggleSegment(_ViewMode.sets, Icons.inventory_2_outlined, 'Sets'),
+                _viewToggleSegment(_ViewMode.colors, Icons.palette_outlined, 'By color'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _viewToggleSegment(_ViewMode mode, IconData icon, String label) {
+    final selected = _viewMode == mode;
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => setState(() => _viewMode = mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.highlightColor.withValues(alpha: 0.3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: selected ? AppColors.highlightColor : AppColors.textSecondary),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Rolls the counted sources up into one total per colour, sorted by colour
+  /// name. Excluded sources are left out so the sum matches the header total.
+  List<_ColorCount> _aggregateByColor() {
+    final byColor = <int, _ColorCount>{};
+    for (final row in _countedRows) {
+      for (final item in row.items) {
+        final existing = byColor[item.colorId];
+        if (existing == null) {
+          byColor[item.colorId] = _ColorCount(
+            colorId: item.colorId,
+            colorName: item.colorName,
+            rgb: item.rgb,
+            quantity: item.quantity,
+          );
+        } else {
+          existing.quantity += item.quantity;
+          existing.colorName ??= item.colorName;
+          existing.rgb ??= item.rgb;
+        }
+      }
+    }
+    return byColor.values.toList()
+      ..sort((a, b) => (a.colorName ?? '').toLowerCase().compareTo((b.colorName ?? '').toLowerCase()));
+  }
+
+  Widget _buildByColorView() {
+    final counts = _aggregateByColor();
+    if (counts.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No counted colors.',
+            style: TextStyle(color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: counts.map(_buildColorCountChip).toList(),
+      ),
+    );
+  }
+
+  // Uses the shared ColorCountChip so this view matches the preset detail page.
+  Widget _buildColorCountChip(_ColorCount c) {
+    final anyColor = c.colorId == 9999 || c.colorName == 'No Color/Any Color';
+    return ColorCountChip(
+      quantity: c.quantity,
+      rgb: c.rgb,
+      colorName: c.colorName,
+      anyColor: anyColor,
+      onTap: () => _selectColor(c.colorId, c.colorName),
     );
   }
 
@@ -543,7 +682,10 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
-                      children: row.items.map(_buildColorChip).toList(),
+                      children: (row.items.toList()
+                            ..sort((a, b) => (a.colorName ?? '').toLowerCase().compareTo((b.colorName ?? '').toLowerCase())))
+                          .map(_buildColorChip)
+                          .toList(),
                     ),
                   ],
                 ),

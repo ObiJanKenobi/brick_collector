@@ -47,6 +47,7 @@ dependencies:
   image_picker: ^1.1.2
   tflite_flutter: ^0.12.0
   image: ^4.1.7
+  archive: ^4.0.0 # unzip LEGO Studio .io files (ZIP archives)
 
   # Firebase
   firebase_core: ^3.12.1

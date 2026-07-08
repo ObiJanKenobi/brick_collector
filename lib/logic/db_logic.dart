@@ -88,6 +88,18 @@ class DbLogic {
 
   Future<void> upsertSource(CachedSource source) async {
     await _isar.writeTxn(() async {
+      // The unique (type, externalId) index replaces the whole row on put,
+      // which would reset the locally-set exclusion flag on every sync —
+      // carry it over from the existing row.
+      final existing = await _isar.cachedSources
+          .filter()
+          .typeEqualTo(source.type)
+          .and()
+          .externalIdEqualTo(source.externalId)
+          .findFirst();
+      if (existing != null) {
+        source.excludeFromInventory = existing.excludeFromInventory;
+      }
       await _isar.cachedSources.put(source);
     });
   }
@@ -144,14 +156,29 @@ class DbLogic {
   }
 
   /// Toggle whether a source's parts count toward inventory/available totals.
+  /// Applied locally first (works offline), then mirrored to the group's
+  /// Firestore exclusions doc so other devices pick it up.
   Future<void> setSourceExcluded(int id, bool excluded) async {
+    CachedSource? src;
     await _isar.writeTxn(() async {
-      final src = await _isar.cachedSources.get(id);
+      src = await _isar.cachedSources.get(id);
       if (src == null) return;
-      src.excludeFromInventory = excluded;
-      await _isar.cachedSources.put(src);
+      src!.excludeFromInventory = excluded;
+      await _isar.cachedSources.put(src!);
     });
     _invalidateExcludedSourceKeys();
+
+    final s = src;
+    if (s == null || !GroupService.instance.hasGroup) return;
+    // Fire and forget: with offline persistence the Future only completes on
+    // server ack, and the local toggle must not hang on connectivity.
+    _exclusionsRef.set({
+      'keys': excluded
+          ? FieldValue.arrayUnion([_sourceKey(s.type, s.externalId)])
+          : FieldValue.arrayRemove([_sourceKey(s.type, s.externalId)]),
+    }, SetOptions(merge: true)).catchError((Object e) {
+      // Local state stays authoritative until the next successful write/sync.
+    });
   }
 
   /// Filter & aggregate the inventory cache by preset criteria. Returns one row
@@ -220,6 +247,61 @@ class DbLogic {
             .deleteAll();
       }
     });
+  }
+
+  // --- Firestore (source exclusions) ---
+
+  /// Single doc per group holding every excluded source key
+  /// ("type_externalId"), so exclusions follow the user across devices the
+  /// same way presets do. Isar remains the local materialization that all
+  /// inventory queries read.
+  DocumentReference get _exclusionsRef => FirebaseFirestore.instance
+      .collection('groups')
+      .doc(GroupService.instance.groupCode)
+      .collection('settings')
+      .doc('exclusions');
+
+  /// Excluded source keys from Firestore. Emits null while the doc does not
+  /// exist yet (fresh group) so the subscriber can seed it from local state.
+  Stream<Set<String>?> watchExcludedSourceKeys() {
+    return _exclusionsRef.snapshots().map((doc) {
+      if (!doc.exists) return null;
+      final data = doc.data() as Map<String, dynamic>?;
+      final list = (data?['keys'] as List?) ?? const [];
+      return list.whereType<String>().toSet();
+    });
+  }
+
+  /// Writes the remote exclusion set onto the local source rows so every
+  /// existing Isar-based query keeps working (including offline).
+  Future<void> applyExcludedSourceKeys(Set<String> keys) async {
+    await _isar.writeTxn(() async {
+      final sources = await _isar.cachedSources.where().findAll();
+      final changed = <CachedSource>[];
+      for (final src in sources) {
+        final shouldExclude = keys.contains(_sourceKey(src.type, src.externalId));
+        if (src.excludeFromInventory != shouldExclude) {
+          src.excludeFromInventory = shouldExclude;
+          changed.add(src);
+        }
+      }
+      if (changed.isNotEmpty) {
+        await _isar.cachedSources.putAll(changed);
+      }
+    });
+    // Remote is the source of truth; keep keys for sources that haven't been
+    // synced locally yet so their items are filtered correctly either way.
+    _excludedSourceKeys = keys;
+  }
+
+  /// Seeds the group's exclusions doc from local flags — used when a device
+  /// with existing local exclusions connects to a group whose doc is missing.
+  Future<void> pushLocalExclusionsToFirestore() async {
+    if (!GroupService.instance.hasGroup) return;
+    _invalidateExcludedSourceKeys();
+    final keys = await _loadExcludedSourceKeys();
+    if (keys.isEmpty) return;
+    await _exclusionsRef.set({'keys': keys.toList()});
   }
 
   // --- Firestore (Mocs) ---

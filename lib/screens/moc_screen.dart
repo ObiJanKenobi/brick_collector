@@ -122,7 +122,7 @@ class MocScreenState extends State<MocScreen> {
               tooltip: 'Set MOC image',
             ),
             IconButton(onPressed: _addManualPart, icon: const Icon(Icons.add_box_outlined), tooltip: 'Add part'),
-            IconButton(onPressed: _addParts, icon: const Icon(Icons.file_download), tooltip: 'Import CSV'),
+            IconButton(onPressed: _addParts, icon: const Icon(Icons.file_download), tooltip: 'Import parts (CSV or Studio .io)'),
             if (moc.sourceUrl != null)
               IconButton(onPressed: _openOnRebrickable, icon: const Icon(Icons.open_in_browser), tooltip: 'Rebrickable'),
             IconButton(onPressed: sortParts, icon: const Icon(Icons.sort), tooltip: 'Sort'),

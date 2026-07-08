@@ -163,7 +163,7 @@ class NavMenuState extends State<NavMenu> {
       final result = await showOkCancelAlertDialog(
         context: context,
         title: 'Import Parts',
-        message: 'Import parts CSV now?',
+        message: 'Import parts now? (Rebrickable/Studio CSV or Studio .io)',
       );
 
       if (result == OkCancelResult.ok && context.mounted) {

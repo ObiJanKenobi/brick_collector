@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { --bg:#0F0F0F; --surface:#1A1A1A; --surfaceLight:#252525; --accent:#FF6700;
+            --text:#FFFFFF; --text2:#AAAAAA; --ok:#7BC043; --warn:#FFB020; --err:#FE4A49; }
+    * { box-sizing: border-box; }
+    body { width: 420px; margin: 0; padding: 14px; background: var(--bg); color: var(--text);
+           font: 13px/1.4 -apple-system, Segoe UI, Roboto, sans-serif; }
+    h1 { font-size: 15px; margin: 0 0 2px; }
+    .sub { color: var(--text2); font-size: 11px; margin-bottom: 12px; }
+    button { font: inherit; border: none; border-radius: 8px; padding: 9px 12px; cursor: pointer;
+             font-weight: 600; }
+    .primary { background: var(--accent); color: #fff; width: 100%; }
+    .primary:disabled { background: #5a3316; color: #bbb; cursor: default; }
+    .row { display: flex; gap: 8px; margin-top: 8px; }
+    .ghost { background: var(--surfaceLight); color: var(--text); flex: 1; }
+    .ghost:disabled { opacity: .5; cursor: default; }
+    #status { margin: 10px 0 0; font-size: 12px; color: var(--text2); white-space: pre-wrap; }
+    .stats { display: flex; gap: 8px; margin-top: 12px; }
+    .stat { flex: 1; background: var(--surface); border-radius: 10px; padding: 8px 10px; }
+    .stat .n { font-size: 18px; font-weight: 800; }
+    .stat .l { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing:.4px; }
+    .warn-box { margin-top: 10px; background: rgba(255,176,32,.12); border: 1px solid rgba(255,176,32,.4);
+                border-radius: 8px; padding: 8px 10px; font-size: 11px; color: #ffd98a; }
+    .warn-box b { color: var(--warn); }
+    .warn-box ul { margin: 4px 0 0; padding-left: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+    .tablewrap { max-height: 240px; overflow-y: auto; border-radius: 8px; }
+    th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--surfaceLight); }
+    th { position: sticky; top: 0; background: var(--surface); color: var(--text2);
+         font-weight: 600; font-size: 10px; text-transform: uppercase; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px;
+          vertical-align: middle; border: 1px solid rgba(255,255,255,.15); }
+    .miss { color: var(--err); }
+    .hidden { display: none; }
+    a.debug { color: var(--text2); font-size: 10px; text-decoration: underline; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>yourwobb → Rebrickable</h1>
+  <div class="sub">Scan a GoBricks cart / checkout page and export a Rebrickable parts CSV.</div>
+
+  <button id="scan" class="primary">Scan cart</button>
+  <div class="row">
+    <button id="download" class="ghost" disabled>Download CSV</button>
+    <button id="copy" class="ghost" disabled>Copy CSV</button>
+  </div>
+
+  <div id="status">Open your yourwobb cart/checkout in the active tab, then click Scan.</div>
+
+  <div id="results" class="hidden">
+    <div class="stats">
+      <div class="stat"><div class="n" id="s-lines">0</div><div class="l">Rows</div></div>
+      <div class="stat"><div class="n" id="s-pieces">0</div><div class="l">Pieces</div></div>
+      <div class="stat"><div class="n" id="s-mapped">0</div><div class="l">Mapped</div></div>
+    </div>
+    <div id="warnings"></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>GoBricks</th><th>Rebrickable</th><th>Color</th><th class="num">Qty</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="margin-top:10px"><a id="dbg" class="debug">Copy debug info</a></div>
+
+  <script src="data.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
