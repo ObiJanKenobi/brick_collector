@@ -128,6 +128,19 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
     return (bl != null && bl.isNotEmpty) ? bl : null;
   }
 
+  String? _gobricksColorForActiveFilter() {
+    // brickwith's color_id is a GoBricks colour id (e.g. 054 = Sand Blue),
+    // zero-padded to three digits. Only deep-link when one colour is active.
+    final ids = _filterColorIds;
+    if (ids == null || ids.length != 1) return null;
+    final rbId = ids.first.toString();
+    final color = brickConverterLogic.colors
+        .firstWhereOrNull((c) => c.rebrickableColor == rbId);
+    final gb = color?.goBrickColor;
+    final n = int.tryParse(gb ?? ''); // guards empty and sentinels like "xxx"
+    return n?.toString().padLeft(3, '0');
+  }
+
   void _selectColor(int colorId, String? colorName) {
     if (colorName != null && colorName.isNotEmpty) {
       _colorNames[colorId] = colorName;
@@ -349,7 +362,11 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
   Widget _buildShopLinks() {
     final go = _goBrickPart;
     final bl = _bricklinkId;
-    if ((go == null || go.isEmpty) && (bl == null || bl.isEmpty)) {
+    final part = widget.part.part;
+    final hasPart = part != null && part.isNotEmpty;
+    if ((go == null || go.isEmpty) &&
+        (bl == null || bl.isEmpty) &&
+        !hasPart) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -363,6 +380,12 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
               label: 'Yourwobb',
               icon: Icons.shopping_bag_outlined,
               onTap: () => _openYourwobb(go),
+            ),
+          if (hasPart)
+            _shopChip(
+              label: 'Brickwith',
+              icon: Icons.storefront_outlined,
+              onTap: () => _openBrickwith(part, gobricksColor: _gobricksColorForActiveFilter()),
             ),
           if (bl != null && bl.isNotEmpty)
             _shopChip(
@@ -411,6 +434,14 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
     final color = (bricklinkColor != null && bricklinkColor.isNotEmpty) ? '&idColor=$bricklinkColor' : '';
     final uri = Uri.parse(
         'https://www.bricklink.com/v2/catalog/catalogitem.page?P=$bricklinkId$color');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _openBrickwith(String legoPart, {String? gobricksColor}) async {
+    // brickwith (GoBricks official shop) routes on the LEGO design id; the
+    // category path segment is cosmetic, so "part" is a safe placeholder.
+    final color = (gobricksColor != null && gobricksColor.isNotEmpty) ? '?color_id=$gobricksColor' : '';
+    final uri = Uri.parse('https://www.brickwith.com/en/parts/part/$legoPart$color');
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 

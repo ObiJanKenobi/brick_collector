@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "yourwobb → Rebrickable CSV",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Scan a yourwobb GoBricks shopping cart and export a Rebrickable-compatible parts CSV (Part,Color,Quantity).",
   "permissions": ["scripting", "activeTab", "downloads"],
   "host_permissions": ["*://*.yourwobb.com/*"],

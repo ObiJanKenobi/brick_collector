@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/CollectablePartGroup.dart';
 import 'package:brick_collector/notifications/save_moc_notification.dart';
@@ -7,8 +9,11 @@ import 'package:brick_collector/ui/modals/moc_filter_modal.dart';
 import 'package:brick_collector/ui/nav_menu.dart';
 import 'package:brick_collector/ui/part_group_card.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class MocScreen extends StatefulWidget {
   final Moc moc;
@@ -140,6 +145,12 @@ class MocScreenState extends State<MocScreen> {
                   color: moc.shoppingMode ? AppColors.highlightColor : null,
                 ),
                 tooltip: moc.shoppingMode ? 'Shopping mode (on)' : 'Shopping mode'),
+            if (moc.shoppingMode && moc.parts?.isNotEmpty == true)
+              IconButton(
+                onPressed: _orderOnBrickwith,
+                icon: const Icon(Icons.storefront),
+                tooltip: 'Order on Brickwith',
+              ),
             const Spacer(),
             IconButton(onPressed: deleteMoc, icon: const Icon(Icons.delete), tooltip: 'Delete'),
           ],
@@ -371,6 +382,124 @@ class MocScreenState extends State<MocScreen> {
   void _openOnRebrickable() async {
     final uri = Uri.parse(moc.sourceUrl!);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  /// Builds a BrickLink "Wanted List" XML from the MOC's parts. Brickwith (and
+  /// the GoBricks backend) ingests this format and converts the BrickLink part
+  /// id + colour to GoBricks server-side. Falls back to the LEGO/Rebrickable
+  /// design id when no BrickLink id is known, and omits the colour when unknown
+  /// rather than emitting a bogus value.
+  String _buildBricklinkXml(List<CollectablePart> parts) {
+    final buf = StringBuffer('<INVENTORY>\n');
+    for (final p in parts) {
+      final id = (p.bricklinkId != null && p.bricklinkId!.isNotEmpty)
+          ? p.bricklinkId!
+          : (p.part ?? '');
+      if (id.isEmpty || p.quantity <= 0) continue;
+      buf.writeln('\t<ITEM>');
+      buf.writeln('\t\t<ITEMTYPE>P</ITEMTYPE>');
+      buf.writeln('\t\t<ITEMID>$id</ITEMID>');
+      final color = p.bricklinkColor;
+      if (color != null && color.isNotEmpty) {
+        buf.writeln('\t\t<COLOR>$color</COLOR>');
+      }
+      buf.writeln('\t\t<MINQTY>${p.quantity}</MINQTY>');
+      buf.writeln('\t</ITEM>');
+    }
+    buf.write('</INVENTORY>');
+    return buf.toString();
+  }
+
+  /// Copies the part list to the clipboard AND writes it to a file, then opens
+  /// Brickwith's upload page. A launched URL can't pre-fill a web upload box, so
+  /// on desktop we reveal the file in Finder/Explorer (drag it into the browser)
+  /// and on mobile we open the share sheet; either way the list is one paste or
+  /// one drop away.
+  Future<void> _orderOnBrickwith() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final parts = moc.parts ?? const <CollectablePart>[];
+
+    final xml = _buildBricklinkXml(parts);
+    final itemCount = '<ITEMID>'.allMatches(xml).length;
+    if (itemCount == 0) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('No parts with a known BrickLink or LEGO id to export.')));
+      return;
+    }
+
+    // (1) Clipboard — paste straight into Brickwith's list box.
+    await Clipboard.setData(ClipboardData(text: xml));
+
+    // (2) Write the file (Downloads on desktop, temp dir elsewhere).
+    final safeName = moc.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+    final date = DateTime.now().toIso8601String().split('T').first;
+    File? file;
+    try {
+      file = await _writeExportFile('brickwith-$safeName-$date.xml', xml);
+    } catch (_) {
+      // Non-fatal — the clipboard copy still lets the user paste the list.
+    }
+
+    // (3) Surface the file: reveal on desktop, share sheet on mobile.
+    final isDesktop =
+        !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+    if (file != null && !kIsWeb) {
+      if (isDesktop) {
+        await _revealInFileManager(file);
+      } else if (Platform.isIOS || Platform.isAndroid) {
+        await SharePlus.instance.share(ShareParams(
+          files: [XFile(file.path)],
+          subject: 'Brickwith part list — ${moc.name}',
+          sharePositionOrigin: renderBox != null
+              ? renderBox.localToGlobal(Offset.zero) & renderBox.size
+              : null,
+        ));
+      }
+    }
+
+    // (4) Open Brickwith's upload page.
+    await launchUrl(Uri.parse('https://www.brickwith.com/en/part-list/upload'),
+        mode: LaunchMode.externalApplication);
+
+    // (5) Tell the user how to finish (the upload itself can't be automated).
+    if (!mounted) return;
+    final hint = isDesktop
+        ? 'File revealed in ${Platform.isMacOS ? 'Finder' : 'your file manager'} — drag it onto the upload box, or paste (${Platform.isMacOS ? '⌘' : 'Ctrl'}+V) the list.'
+        : 'List copied to clipboard — paste it, or use the shared file.';
+    messenger.showSnackBar(SnackBar(
+      content: Text('$itemCount parts ready for Brickwith. $hint'),
+      duration: const Duration(seconds: 6),
+    ));
+  }
+
+  /// Writes [contents] to [name] in the Downloads folder on desktop (so the user
+  /// can find it to drag into the browser), or the temp dir on mobile/web.
+  Future<File> _writeExportFile(String name, String contents) async {
+    Directory? dir;
+    if (!kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
+      dir = await getDownloadsDirectory();
+    }
+    dir ??= await getTemporaryDirectory();
+    final file = File('${dir.path}${Platform.pathSeparator}$name');
+    await file.writeAsString(contents);
+    return file;
+  }
+
+  /// Opens the OS file manager with [file] selected (macOS Finder / Windows
+  /// Explorer) or its containing folder (Linux has no portable "select").
+  Future<void> _revealInFileManager(File file) async {
+    try {
+      if (Platform.isMacOS) {
+        await Process.run('open', ['-R', file.path]);
+      } else if (Platform.isWindows) {
+        await Process.run('explorer', ['/select,${file.path}']);
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [file.parent.path]);
+      }
+    } catch (_) {
+      // Best-effort — the file is written and the list is on the clipboard.
+    }
   }
 
   Future<void> _pickImage() async {

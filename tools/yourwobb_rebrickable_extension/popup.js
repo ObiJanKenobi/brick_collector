@@ -285,6 +285,8 @@ async function copyDebug() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  const v = $('ver');
+  if (v) v.textContent = 'v' + chrome.runtime.getManifest().version;
   $('scan').addEventListener('click', scan);
   $('download').addEventListener('click', download);
   $('copy').addEventListener('click', copyCsv);

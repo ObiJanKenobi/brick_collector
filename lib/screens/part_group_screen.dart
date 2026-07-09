@@ -507,8 +507,13 @@ class PartGroupScreenState extends State<PartGroupScreen> {
     final bricklinkId = group.parts
         .map((p) => p.bricklinkId)
         .firstWhere((s) => s != null && s.isNotEmpty, orElse: () => null);
+    final legoPart = group.parts
+        .map((p) => p.part)
+        .firstWhere((s) => s != null && s.isNotEmpty, orElse: () => null);
 
-    if (goBrickPart == null && bricklinkId == null) return const SizedBox.shrink();
+    if (goBrickPart == null && bricklinkId == null && legoPart == null) {
+      return const SizedBox.shrink();
+    }
 
     return Wrap(
       spacing: 6,
@@ -519,6 +524,12 @@ class PartGroupScreenState extends State<PartGroupScreen> {
             label: 'Yourwobb',
             icon: Icons.shopping_bag_outlined,
             onTap: () => _openYourwobb(goBrickPart),
+          ),
+        if (legoPart != null)
+          _shopChip(
+            label: 'Brickwith',
+            icon: Icons.storefront_outlined,
+            onTap: () => _openBrickwith(legoPart),
           ),
         if (bricklinkId != null)
           _shopChip(
@@ -566,6 +577,14 @@ class PartGroupScreenState extends State<PartGroupScreen> {
     final color = (bricklinkColor != null && bricklinkColor.isNotEmpty) ? '&idColor=$bricklinkColor' : '';
     final uri = Uri.parse(
         'https://www.bricklink.com/v2/catalog/catalogitem.page?P=$bricklinkId$color');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _openBrickwith(String legoPart, {String? gobricksColor}) async {
+    // brickwith (GoBricks official shop) routes on the LEGO design id; the
+    // category path segment is cosmetic, so "part" is a safe placeholder.
+    final color = (gobricksColor != null && gobricksColor.isNotEmpty) ? '?color_id=$gobricksColor' : '';
+    final uri = Uri.parse('https://www.brickwith.com/en/parts/part/$legoPart$color');
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
