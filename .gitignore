@@ -48,3 +48,10 @@ app.*.map.json
 # Heavy local data — not for git
 tools/training/
 assets/parts_1/
+
+# Screenshot captures (scripts/screenshots.sh)
+shots/
+screenshots/
+
+# Release build output (scripts/build_windows.ps1 etc.)
+dist/

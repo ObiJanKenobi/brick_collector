@@ -13,7 +13,11 @@ dependencies:
     sdk: flutter
 
   brick_lib:
-    path: /Users/wagenblast/develop/brick-lib
+    # Relative so the app builds on any machine with brick-lib cloned alongside
+    # it (…/develop/brick_collector + …/develop/brick-lib). Portable across
+    # macOS/Windows; swap in the git dependency below to build without a
+    # side-by-side clone.
+    path: ../brick-lib
   #    git:
   #      url: https://github.com/ObiJanKenobi/brick-lib
   #      ref: 0.0.3
@@ -58,6 +62,11 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+
+  # Drives the app on a real device/simulator for screenshot capture
+  # (integration_test/screenshots_test.dart via scripts/screenshots.sh).
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to

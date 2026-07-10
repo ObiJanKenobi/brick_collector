@@ -143,6 +143,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     if (!_authComplete) {
       return MaterialApp(
+        debugShowCheckedModeBanner: false,
         title: 'Brick Collector',
         theme: _buildTheme(),
         home: const Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -150,6 +151,7 @@ class _MyAppState extends State<MyApp> {
     }
 
     return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       routerConfig: appRouter,
       title: 'Brick Collector',
       theme: _buildTheme(),
