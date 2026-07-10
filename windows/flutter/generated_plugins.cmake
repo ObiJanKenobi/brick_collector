@@ -10,7 +10,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_auth
   firebase_core
   isar_community_flutter_libs
-  msix
   share_plus
   url_launcher_windows
 )

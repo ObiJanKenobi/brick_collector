@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:brick_collector/common_libs.dart';
@@ -120,12 +121,7 @@ class MocScreenState extends State<MocScreen> {
         color: moc.shoppingMode ? AppColors.highlightColor.withValues(alpha: 0.12) : null,
         child: Row(
           children: [
-            IconButton(onPressed: editMoc, icon: const Icon(Icons.edit), tooltip: 'Rename'),
-            IconButton(
-              onPressed: _pickImage,
-              icon: Icon(moc.imageBase64 != null ? Icons.image : Icons.image_outlined),
-              tooltip: 'Set MOC image',
-            ),
+            IconButton(onPressed: editMoc, icon: const Icon(Icons.edit), tooltip: 'Edit (name & image)'),
             IconButton(onPressed: _addManualPart, icon: const Icon(Icons.add_box_outlined), tooltip: 'Add part'),
             IconButton(onPressed: _addParts, icon: const Icon(Icons.file_download), tooltip: 'Import parts (CSV or Studio .io)'),
             if (moc.sourceUrl != null)
@@ -160,14 +156,95 @@ class MocScreenState extends State<MocScreen> {
   }
 
   editMoc() async {
-    final text = await showTextInputDialog(context: context, textFields: [DialogTextField(initialText: moc.name)], title: "Update MOC");
+    final controller = TextEditingController(text: moc.name);
 
-    if (text == null || text.isEmpty == true) {
-      return;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          Uint8List? bytes;
+          final b64 = moc.imageBase64;
+          if (b64 != null) {
+            try {
+              bytes = base64Decode(b64);
+            } catch (_) {/* corrupt data — show placeholder */}
+          }
+          return AlertDialog(
+            title: const Text('Edit MOC'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Tap the preview to pick/replace the image.
+                  InkWell(
+                    onTap: () async {
+                      if (await _chooseAndSaveImage()) setLocal(() {});
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      height: 140,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceLight,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.highlightColor.withValues(alpha: 0.4)),
+                        image: bytes != null
+                            ? DecorationImage(image: MemoryImage(bytes), fit: BoxFit.cover)
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: bytes == null
+                          ? const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add_photo_alternate_outlined, size: 32, color: AppColors.textSecondary),
+                                SizedBox(height: 6),
+                                Text('Add image', style: TextStyle(color: AppColors.textSecondary)),
+                              ],
+                            )
+                          : null,
+                    ),
+                  ),
+                  if (bytes != null)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          if (await _removeImage()) setLocal(() {});
+                        },
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Remove image'),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: 'Name'),
+                    onSubmitted: (_) => Navigator.of(ctx).pop(true),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Save')),
+            ],
+          );
+        },
+      ),
+    );
+
+    // Image changes are applied immediately inside the dialog; only the name
+    // is committed on Save.
+    if (save == true) {
+      final name = controller.text.trim();
+      if (name.isNotEmpty && name != moc.name) {
+        moc.name = name;
+        await mocLogic.saveMoc(moc);
+      }
     }
-    moc.name = text.first;
-
-    await mocLogic.saveMoc(moc);
+    if (mounted) setState(() {});
   }
 
   deleteMoc() async {
@@ -502,39 +579,19 @@ class MocScreenState extends State<MocScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
+  /// Picks an image and stores it on the MOC. Returns true if the image changed.
+  /// Called from the edit dialog; shows progress/result via the Scaffold.
+  Future<bool> _chooseAndSaveImage() async {
     final messenger = ScaffoldMessenger.of(context);
-
-    if (moc.imageBase64 != null) {
-      final action = await showModalActionSheet<String>(
-        context: context,
-        title: 'MOC image',
-        actions: const [
-          SheetAction(label: 'Replace image', key: 'replace'),
-          SheetAction(label: 'Remove image', key: 'remove', isDestructiveAction: true),
-        ],
-      );
-      if (action == null) return;
-      if (action == 'remove') {
-        await mocLogic.clearMocImage(moc);
-        if (!mounted) return;
-        setState(() {});
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Image removed'), duration: Duration(seconds: 2)),
-        );
-        return;
-      }
-    }
 
     final List<int>? bytes;
     try {
       bytes = await mocLogic.pickImageBytes();
     } catch (e) {
-      if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('Could not open picker: $e')));
-      return;
+      return false;
     }
-    if (bytes == null) return; // User cancelled the picker.
+    if (bytes == null) return false; // User cancelled the picker.
 
     // Spinner only covers the encode + Firestore save, not the user's
     // gallery-browsing time.
@@ -558,15 +615,24 @@ class MocScreenState extends State<MocScreen> {
     try {
       await mocLogic.setMocImageFromBytes(moc, bytes);
       progress.close();
-      if (!mounted) return;
-      setState(() {});
       messenger.showSnackBar(
         const SnackBar(content: Text('Image saved'), duration: Duration(seconds: 2)),
       );
+      return true;
     } catch (e) {
       progress.close();
-      if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('Could not set image: $e')));
+      return false;
     }
+  }
+
+  /// Clears the MOC image. Returns true (always changes state).
+  Future<bool> _removeImage() async {
+    final messenger = ScaffoldMessenger.of(context);
+    await mocLogic.clearMocImage(moc);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Image removed'), duration: Duration(seconds: 2)),
+    );
+    return true;
   }
 }

@@ -106,7 +106,7 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
                 );
               }
               return SliverList.builder(
-                itemBuilder: (context, index) => _buildCategoryTile(preset, items[index]),
+                itemBuilder: (context, index) => _buildCategoryTile(preset, items[index], index),
                 itemCount: items.length,
               );
             },
@@ -163,23 +163,30 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
     );
   }
 
-  Widget _buildCategoryTile(FilterPreset preset, RebrickablePartCategory data) {
+  Widget _buildCategoryTile(FilterPreset preset, RebrickablePartCategory data, int index) {
     final selected = preset.categories?.any((e) => e.id == data.id) ?? false;
     return ListTile(
+      // Alternating stripe so a switch is easy to match to its category row.
+      tileColor: index.isEven ? null : AppColors.surface,
+      // Desktop hover feedback; also lets a click anywhere on the row toggle it.
+      hoverColor: AppColors.highlightColor.withValues(alpha: 0.1),
+      onTap: () => _setCategory(preset, data, !selected),
       title: Text(data.name),
       trailing: Switch(
         value: selected,
-        onChanged: (val) {
-          setState(() {
-            if (val) {
-              preset.addCategory(data);
-            } else {
-              preset.removeCategory(data.id);
-            }
-          });
-        },
+        onChanged: (val) => _setCategory(preset, data, val),
       ),
     );
+  }
+
+  void _setCategory(FilterPreset preset, RebrickablePartCategory data, bool selected) {
+    setState(() {
+      if (selected) {
+        preset.addCategory(data);
+      } else {
+        preset.removeCategory(data.id);
+      }
+    });
   }
 
   Widget _buildColorTile(FilterPreset preset, RebrickableColor color) {
