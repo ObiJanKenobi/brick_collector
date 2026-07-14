@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 import 'package:brick_collector/services/group_service.dart';
 import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
@@ -32,13 +33,17 @@ class NavMenuState extends State<NavMenu> {
             child: Column(children: [
               const SizedBox(height: 24),
               // App title
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    Icon(Icons.widgets, color: AppColors.highlightColor, size: 28),
-                    SizedBox(width: 10),
-                    Text('Brick Collector', style: TextStyle(
+                    SvgPicture.asset(
+                      'assets/branding/logo_mark.svg',
+                      width: 30,
+                      height: 30,
+                    ),
+                    const SizedBox(width: 10),
+                    const Text('Brick Collector', style: TextStyle(
                       fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary,
                     )),
                   ],

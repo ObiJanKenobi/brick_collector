@@ -84,6 +84,39 @@ dev_dependencies:
   flutter_speed_dial: ^6.2.0
   msix: ^2.7.3
 
+  # Regenerates per-platform launcher icons from assets/branding/ (config block
+  # at the bottom of this file). Run: dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.1
+
+# Launcher icon generation. Source art lives in assets/branding/ (regenerate the
+# PNGs there with scripts/gen_logo.py, then run: dart run flutter_launcher_icons).
+# The "Collection Grid" mark: an orange staircase of stylized, stud-free bricks
+# on the app's dark ground — no realistic LEGO brick or wordmark.
+flutter_launcher_icons:
+  image_path: "assets/branding/app_icon_1024.png"
+  remove_alpha_ios: true
+
+  android: true
+  adaptive_icon_background: "assets/branding/app_icon_background.png"
+  adaptive_icon_foreground: "assets/branding/app_icon_foreground.png"
+
+  ios: true
+
+  macos:
+    generate: true
+    image_path: "assets/branding/app_icon_1024.png"
+
+  windows:
+    generate: true
+    image_path: "assets/branding/app_icon_1024.png"
+    icon_size: 256
+
+  web:
+    generate: true
+    image_path: "assets/branding/app_icon_1024.png"
+    background_color: "#0F0F0F"
+    theme_color: "#FF6700"
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -97,6 +130,7 @@ flutter:
 
   assets:
     - assets/models/
+    - assets/branding/logo_mark.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

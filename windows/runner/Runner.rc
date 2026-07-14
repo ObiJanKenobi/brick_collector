@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "brick_collector" "\0"
+            VALUE "FileDescription", "Brick Collector" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "brick_collector" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2023 com.example. All rights reserved." "\0"
             VALUE "OriginalFilename", "brick_collector.exe" "\0"
-            VALUE "ProductName", "brick_collector" "\0"
+            VALUE "ProductName", "Brick Collector" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

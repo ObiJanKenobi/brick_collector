@@ -1,11 +1,11 @@
 {
-    "name": "brick_collector",
-    "short_name": "brick_collector",
+    "name": "Brick Collector",
+    "short_name": "Brick Collector",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0F0F0F",
+    "theme_color": "#FF6700",
+    "description": "Import LEGO part lists from Rebrickable and track your collection.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
