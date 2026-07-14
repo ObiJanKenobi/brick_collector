@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.brickCollector</string>
+	<string>de.fpe.brickCollector</string>
 	<key>PROJECT_ID</key>
 	<string>brick-collector-3d1bc</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:392508468357:ios:64679c788dcffd59940dec</string>
+	<string>1:392508468357:ios:68ab5bdfe4f7e89a940dec</string>
 </dict>
 </plist>
