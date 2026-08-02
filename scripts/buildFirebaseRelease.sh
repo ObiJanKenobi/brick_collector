@@ -11,6 +11,9 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$here"
 
+echo "Running unit tests"
+(cd "$here/.." && flutter test) || { echo "Tests failed - aborting build."; exit 1; }
+
 echo "PROD Build"
 bash ./prod_release_apk.sh
 

@@ -5,23 +5,40 @@ plugins {
     id "com.google.gms.google-services"
 }
 
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file('local.properties')
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader('UTF-8') { reader ->
-        localProperties.load(reader)
+/* versionCode calculated from git commits to give sequential integers */
+
+// Previously the versionCode came from local.properties (flutter.versionCode),
+// which mirrors the "+N" in pubspec's version. That never changed, so every
+// Firebase App Distribution upload landed as versionCode 1 and testers could
+// not tell builds apart. Deriving it from the commit count makes it increment
+// on its own. Same scheme as pitch-db-flutter.
+//
+// buildModifier lives in pubspec.yaml so the offset stays in one place, shared
+// with the release scripts in scripts/.
+def getBuildModifier() {
+    try {
+        def pubspec = file("${rootProject.projectDir}/../pubspec.yaml").text
+        def matcher = (pubspec =~ /(?m)^buildModifier:\s*(\d+)/)
+        if (matcher.find()) {
+            return matcher.group(1).toInteger()
+        }
+        println("buildModifier not found in pubspec.yaml — using fallback")
+    } catch (Exception e) {
+        println("Could not read buildModifier from pubspec.yaml (${e.message}) — using fallback")
     }
+    return 0 // fallback; keep in sync with pubspec.yaml's buildModifier
 }
 
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
+def getGitVersion() {
+    def dir = rootProject.projectDir
+    def branch = "git rev-parse --abbrev-ref HEAD".execute(null, dir).text.trim()
+    println("Branch: $branch")
+    def count = "git rev-list $branch --first-parent --count".execute(null, dir).text.trim()
+    return count.toInteger() + getBuildModifier()
 }
 
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
-}
+def gitVer = getGitVersion()
+println("Git Ver: $gitVer")
 
 android {
     namespace "com.example.brick_collector"
@@ -45,8 +62,9 @@ android {
         applicationId "com.example.brick_collector"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+        versionCode gitVer
+        versionName flutter.versionName
+        archivesBaseName = "$defaultConfig.applicationId-$defaultConfig.versionName+$gitVer"
     }
 
     buildTypes {
