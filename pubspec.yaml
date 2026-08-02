@@ -3,6 +3,9 @@ description: Import Rebrickable Parts and collet them
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 version: 1.0.0+1
+# Release notes for the next Firebase App Distribution build.
+# Read by scripts/upload_firebase.sh; update this before each release.
+changes: Tablet support - larger colour swatches and a wider colour grid on iPad and Android tablets.
 
 environment:
 
