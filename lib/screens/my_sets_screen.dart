@@ -1,7 +1,10 @@
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/cached_source.dart';
+import 'package:brick_collector/services/collection_sync_service.dart';
+import 'package:brick_collector/ui/modals/add_set_modal.dart';
 import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
 import 'package:brick_collector/ui/nav_menu.dart';
+import 'package:brick_lib/model/rebrickable_set.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 /// Lists the user's Rebrickable sets pulled in during collection sync. Each set
@@ -17,6 +20,7 @@ class MySetsScreen extends StatefulWidget {
 
 class MySetsScreenState extends State<MySetsScreen> {
   List<CachedSource>? _sets;
+  bool _addingSet = false;
 
   @override
   void initState() {
@@ -45,6 +49,13 @@ class MySetsScreenState extends State<MySetsScreen> {
       appBar: AppBar(
         title: const Text('My Sets'),
         automaticallyImplyLeading: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add set',
+            onPressed: _addingSet ? null : _addSet,
+          ),
+        ],
       ),
       drawer: const Drawer(child: NavMenu()),
       body: CustomScrollView(slivers: [
@@ -57,9 +68,11 @@ class MySetsScreenState extends State<MySetsScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    sets == null
-                        ? 'Loading…'
-                        : '$includedCount of ${sets.length} sets counted toward inventory',
+                    _addingSet
+                        ? 'Importing set…'
+                        : sets == null
+                            ? 'Loading…'
+                            : '$includedCount of ${sets.length} sets counted toward inventory',
                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ),
@@ -77,15 +90,23 @@ class MySetsScreenState extends State<MySetsScreen> {
             child: Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
           )
         else if (sets.isEmpty)
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(
-                child: Text(
-                  'No sets synced yet.\nSync your collection to fetch your Rebrickable sets.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  const Text(
+                    'No sets synced yet.\nSync your collection to fetch your Rebrickable sets.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    onPressed: _addingSet ? null : _addSet,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Add a set'),
+                  ),
+                ],
               ),
             ),
           )
@@ -191,5 +212,40 @@ class MySetsScreenState extends State<MySetsScreen> {
     await showSyncProgressModal(context);
     if (!mounted) return;
     await _loadSets();
+  }
+
+  /// Adds a set to the Rebrickable collection, then pulls just that set into
+  /// the local cache so its parts count immediately, without a full sync.
+  Future<void> _addSet() async {
+    final added = await showModalBottomSheet<RebrickableSet>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const AddSetModal(),
+    );
+    if (added == null || !mounted) return;
+
+    setState(() => _addingSet = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      // Read the quantity back from the server: adding a set that is already
+      // in the collection increments it rather than creating a second entry.
+      final userSet = await rbService.getUserSet(added.setNum);
+      await collectionSyncService.syncSingleSet(
+        userSet?.set ?? added,
+        quantity: userSet?.quantity ?? 1,
+      );
+      if (!mounted) return;
+      await _loadSets();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Added ${added.name}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('${added.setNum} was added, but importing its parts failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _addingSet = false);
+    }
   }
 }

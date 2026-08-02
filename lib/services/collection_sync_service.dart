@@ -173,6 +173,17 @@ class CollectionSyncService {
     return byNum.values.toList();
   }
 
+  /// Pulls one set into the local cache without running a full sync. Used
+  /// after adding a set from the "My Sets" screen, so the new set's parts show
+  /// up straight away instead of only after the next full sync.
+  ///
+  /// [quantity] should be the set's quantity as the server reports it, not the
+  /// amount just added - adding a set that is already in the collection bumps
+  /// the existing quantity rather than creating a second entry.
+  Future<void> syncSingleSet(RebrickableSet set, {int quantity = 1}) async {
+    await _syncSet(RebrickableUserSet(listId: 0, set: set, quantity: quantity));
+  }
+
   Future<void> _syncSet(RebrickableUserSet userSet) async {
     final source = CachedSource()
       ..type = CachedSourceType.set
