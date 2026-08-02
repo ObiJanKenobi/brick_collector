@@ -2,6 +2,7 @@ import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/cached_source.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 import 'package:brick_collector/ui/modals/add_set_modal.dart';
+import 'package:brick_collector/ui/modals/alternate_builds_modal.dart';
 import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
 import 'package:brick_collector/ui/nav_menu.dart';
 import 'package:brick_lib/model/rebrickable_set.dart';
@@ -195,7 +196,11 @@ class MySetsScreenState extends State<MySetsScreen> {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.lightbulb_outline),
+                tooltip: 'Alternate builds',
+                onPressed: () => _showAlternates(set),
+              ),
               Switch(
                 value: !excluded,
                 activeThumbColor: AppColors.highlightColor,
@@ -212,6 +217,14 @@ class MySetsScreenState extends State<MySetsScreen> {
     await showSyncProgressModal(context);
     if (!mounted) return;
     await _loadSets();
+  }
+
+  void _showAlternates(CachedSource set) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AlternateBuildsModal(setNum: set.externalId, setName: set.name),
+    );
   }
 
   /// Adds a set to the Rebrickable collection, then pulls just that set into
