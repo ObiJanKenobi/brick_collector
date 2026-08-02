@@ -131,14 +131,15 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
                   child: Padding(padding: EdgeInsets.all(16), child: Text('No colors')),
                 );
               }
+              final bool tablet = context.isTablet;
               return SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 180,
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: tablet ? 240 : 180,
                     mainAxisSpacing: 6,
                     crossAxisSpacing: 6,
-                    childAspectRatio: 2.5,
+                    childAspectRatio: tablet ? 2.2 : 2.5,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => _buildColorTile(preset, items[index]),
@@ -193,6 +194,7 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
     final selected = preset.hasColor(color.id);
     final swatch = HexColor.fromHex('#${color.rgb}');
     final isDark = swatch.computeLuminance() < 0.45;
+    final double scale = context.colorChipScale;
 
     return GestureDetector(
       onTap: () {
@@ -212,19 +214,19 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
               ? Border.all(color: AppColors.highlightColor, width: 3)
               : Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 4 * scale),
         child: Row(
           children: [
             if (selected)
-              Icon(Icons.check_circle, size: 16, color: isDark ? Colors.white : Colors.black87),
-            if (selected) const SizedBox(width: 6),
+              Icon(Icons.check_circle, size: 16 * scale, color: isDark ? Colors.white : Colors.black87),
+            if (selected) SizedBox(width: 6 * scale),
             Expanded(
               child: Text(
                 color.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 12 * scale,
                   fontWeight: FontWeight.w600,
                   color: isDark ? Colors.white : Colors.black87,
                 ),

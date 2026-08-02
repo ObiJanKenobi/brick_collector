@@ -42,6 +42,7 @@ class ColorCountChip extends StatelessWidget {
             : AppColors.surfaceLight);
     final bool isDark = color.computeLuminance() < 0.4;
     final String label = '$quantity';
+    final double scale = context.colorChipScale;
 
     return GestureDetector(
       onTap: onTap,
@@ -51,11 +52,11 @@ class ColorCountChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 36 * scale,
+              height: 36 * scale,
               decoration: BoxDecoration(
                 color: color,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(6 * scale),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
               ),
               child: Center(
@@ -63,13 +64,13 @@ class ColorCountChip extends StatelessWidget {
                     ? Stack(
                         alignment: Alignment.center,
                         children: [
-                          const SizedBox(
-                              width: 30,
-                              height: 30,
-                              child: DiagonalStripePatternView()),
+                          SizedBox(
+                              width: 30 * scale,
+                              height: 30 * scale,
+                              child: const DiagonalStripePatternView()),
                           Text(label,
-                              style: const TextStyle(
-                                  fontSize: 12,
+                              style: TextStyle(
+                                  fontSize: 12 * scale,
                                   fontWeight: FontWeight.w800,
                                   color: AppColors.textPrimary)),
                         ],
@@ -77,7 +78,7 @@ class ColorCountChip extends StatelessWidget {
                     : Text(
                         label,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 12 * scale,
                           fontWeight: FontWeight.w800,
                           color: isDark ? Colors.white : Colors.black87,
                         ),

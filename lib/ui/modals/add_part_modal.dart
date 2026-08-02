@@ -208,11 +208,11 @@ class _AddPartModalState extends State<AddPartModal> {
       child: Row(
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: context.chip(28),
+            height: context.chip(28),
             decoration: BoxDecoration(
               color: swatch,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(context.chip(6)),
               border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
             ),
           ),
@@ -463,11 +463,11 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                         return ListTile(
                           dense: true,
                           leading: Container(
-                            width: 28,
-                            height: 28,
+                            width: context.chip(28),
+                            height: context.chip(28),
                             decoration: BoxDecoration(
                               color: _AddPartModalState._swatch(c.rgb),
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.circular(context.chip(6)),
                               border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                             ),
                           ),

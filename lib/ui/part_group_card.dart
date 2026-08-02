@@ -399,6 +399,7 @@ class PartGroupCardState extends State<PartGroupCard> {
     final bool completed = part.completed;
     final bool isDark = color.computeLuminance() < 0.4;
     final String label = completed ? '\u2713' : '-${part.remaining}';
+    final double scale = context.colorChipScale;
 
     return GestureDetector(
       onTap: () {
@@ -427,11 +428,11 @@ class PartGroupCardState extends State<PartGroupCard> {
             ],
             const SizedBox(width: 6),
             Container(
-              width: 36,
-              height: 36,
+              width: 36 * scale,
+              height: 36 * scale,
               decoration: BoxDecoration(
                 color: completed ? color.withValues(alpha: 0.35) : color,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(6 * scale),
                 border: completed
                     ? Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5)
                     : Border.all(color: Colors.white.withValues(alpha: 0.15)),
@@ -441,16 +442,16 @@ class PartGroupCardState extends State<PartGroupCard> {
                     ? Stack(
                         alignment: Alignment.center,
                         children: [
-                          const SizedBox(width: 30, height: 30, child: DiagonalStripePatternView()),
+                          SizedBox(width: 30 * scale, height: 30 * scale, child: const DiagonalStripePatternView()),
                           Text(label,
-                              style: const TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                              style: TextStyle(
+                                  fontSize: 12 * scale, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                         ],
                       )
                     : Text(
                         label,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 12 * scale,
                           fontWeight: FontWeight.w800,
                           color: completed ? Colors.greenAccent : (isDark ? Colors.white : Colors.black87),
                         ),

@@ -11,6 +11,7 @@ export 'package:go_router/go_router.dart';
 export 'package:brick_collector/logger.dart';
 export 'package:brick_collector/model/moc.dart';
 export 'package:brick_collector/ui/app_colors.dart';
+export 'package:brick_collector/ui/responsive.dart';
 export 'package:brick_collector/logic/app_logic.dart';
 export 'package:brick_collector/main.dart';
 export 'package:brick_collector/router.dart';

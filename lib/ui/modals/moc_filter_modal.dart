@@ -202,12 +202,13 @@ class _MocFilterModalState extends State<MocFilterModal> {
       }
       inner = ColoredBox(color: c);
     }
+    final double scale = context.colorChipScale;
     return Container(
-      width: 28,
-      height: 28,
+      width: 28 * scale,
+      height: 28 * scale,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(6 * scale),
         border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
       ),
       child: inner,

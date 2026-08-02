@@ -744,8 +744,9 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
     if (rgb != null && rgb.length == 6) {
       swatch = Color(int.parse('FF$rgb', radix: 16));
     }
+    final double scale = context.colorChipScale;
     final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: EdgeInsets.symmetric(horizontal: 6 * scale, vertical: 2 * scale),
       decoration: BoxDecoration(
         color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(12),
@@ -754,9 +755,9 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: swatch, borderRadius: BorderRadius.circular(2)),
+            width: 10 * scale,
+            height: 10 * scale,
+            decoration: BoxDecoration(color: swatch, borderRadius: BorderRadius.circular(2 * scale)),
           ),
           const SizedBox(width: 4),
           Text(
