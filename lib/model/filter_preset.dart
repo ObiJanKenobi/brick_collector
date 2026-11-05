@@ -1,7 +1,10 @@
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_lib/model/rebrickable_color.dart';
 import 'package:brick_lib/model/rebrickable_part_category.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// `show` only: cloud_firestore 7.x exports pipeline names (`Type`, `Field`,
+// `Filter`, ...) that would shadow dart:core / Isar names in the generated
+// part file.
+import 'package:cloud_firestore/cloud_firestore.dart' show DocumentSnapshot;
 
 part 'filter_preset.g.dart';
 
