@@ -29,15 +29,8 @@ class FilterPreset {
   String? imageUrl;
 
   List<RebrickablePartCategory>? categories;
-  @JsonKey(toJson: _colorsToJson)
   List<RebrickableColor>? colors;
   String? searchText;
-
-  // Colors from the Rebrickable API carry external_ids, whose BrickLink/LEGO
-  // ext_descrs are nested arrays — Firestore rejects those with a native crash.
-  // Nothing reads a color's externalIds back, so drop it before upload.
-  static List<Map<String, dynamic>>? _colorsToJson(List<RebrickableColor>? colors) =>
-      colors?.map((c) => c.toJson()..remove('external_ids')).toList();
 
   // Isar's readObjectList returns a fixed-length list, so we always copy into
   // a fresh growable list before mutating.

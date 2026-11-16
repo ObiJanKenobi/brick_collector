@@ -1197,6 +1197,6 @@ Map<String, dynamic> _$FilterPresetToJson(FilterPreset instance) =>
       'name': instance.name,
       'imageUrl': instance.imageUrl,
       'categories': instance.categories?.map((e) => e.toJson()).toList(),
-      'colors': FilterPreset._colorsToJson(instance.colors),
+      'colors': instance.colors?.map((e) => e.toJson()).toList(),
       'searchText': instance.searchText,
     };

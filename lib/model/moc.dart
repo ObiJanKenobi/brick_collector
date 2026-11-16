@@ -1,5 +1,5 @@
 import 'package:brick_collector/common_libs.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' show DocumentSnapshot;
 
 import 'collectable_part.dart';
 
