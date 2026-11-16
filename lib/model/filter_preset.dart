@@ -64,6 +64,29 @@ class FilterPreset {
 
   bool hasColor(int colorId) => colors?.any((c) => c.id == colorId) ?? false;
 
+  /// Whether [other] selects the same parts: same categories, colours and
+  /// search text (ignoring name, order and surrounding whitespace).
+  bool hasSameCriteria(FilterPreset other) =>
+      const SetEquality<int>().equals(
+        {...?categories?.map((c) => c.id)},
+        {...?other.categories?.map((c) => c.id)},
+      ) &&
+      const SetEquality<int>().equals(
+        {...?colors?.map((c) => c.id)},
+        {...?other.colors?.map((c) => c.id)},
+      ) &&
+      (searchText ?? '').trim() == (other.searchText ?? '').trim();
+
+  /// Independent copy (same document id), so a draft can be edited without
+  /// touching the original, e.g. the shared instance in PartsLogic.presets.
+  FilterPreset copy() => FilterPreset(name: name)
+    ..id = id
+    ..firestoreId = firestoreId
+    ..imageUrl = imageUrl
+    ..categories = categories == null ? null : List.of(categories!)
+    ..colors = colors == null ? null : List.of(colors!)
+    ..searchText = searchText;
+
   factory FilterPreset.fromJson(Map<String, dynamic> json) => _$FilterPresetFromJson(json);
 
   Map<String, dynamic> toJson() => _$FilterPresetToJson(this);

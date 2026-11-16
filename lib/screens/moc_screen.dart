@@ -209,8 +209,8 @@ class MocScreenState extends State<MocScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton.icon(
-                        onPressed: () async {
-                          if (await _removeImage()) setLocal(() {});
+                        onPressed: () {
+                          if (_removeImage()) setLocal(() {});
                         },
                         icon: const Icon(Icons.delete_outline, size: 18),
                         label: const Text('Remove image'),
@@ -241,7 +241,7 @@ class MocScreenState extends State<MocScreen> {
       final name = controller.text.trim();
       if (name.isNotEmpty && name != moc.name) {
         moc.name = name;
-        await mocLogic.saveMoc(moc);
+        mocLogic.saveMoc(moc);
       }
     }
     if (mounted) setState(() {});
@@ -255,8 +255,8 @@ class MocScreenState extends State<MocScreen> {
       canPop: false,
     );
     if (result == OkCancelResult.ok) {
-      await mocLogic.deleteMoc(moc);
-      context.go(ScreenPaths.home);
+      mocLogic.deleteMoc(moc);
+      if (mounted) context.go(ScreenPaths.home);
     }
   }
 
@@ -323,7 +323,7 @@ class MocScreenState extends State<MocScreen> {
     if (parts == null || parts.isEmpty) return;
 
     moc.parts = appLogic.mergeParts(moc.parts ?? [], parts);
-    await mocLogic.saveMoc(moc);
+    mocLogic.saveMoc(moc);
     if (!mounted) return;
     setState(() {});
   }
@@ -366,7 +366,7 @@ class MocScreenState extends State<MocScreen> {
 
     if (moc.hideComplete != result.hideCompleted) {
       moc.hideComplete = result.hideCompleted;
-      await mocLogic.saveMoc(moc);
+      mocLogic.saveMoc(moc);
     }
     // Inventory data only needed when the filter is on; reload on apply so it
     // reflects any parts added/removed since last time.
@@ -420,8 +420,8 @@ class MocScreenState extends State<MocScreen> {
     return true;
   }
 
-  void _saveMocInternal() async {
-    await mocLogic.saveMoc(moc);
+  void _saveMocInternal() {
+    mocLogic.saveMoc(moc);
 
     setState(() {});
 
@@ -446,13 +446,13 @@ class MocScreenState extends State<MocScreen> {
     if (result == null) return;
 
     moc.sort = result;
-    await mocLogic.saveMoc(moc);
+    mocLogic.saveMoc(moc);
     setState(() {});
   }
 
-  void toggleShoppingMode() async {
+  void toggleShoppingMode() {
     moc.shoppingMode = !moc.shoppingMode;
-    await mocLogic.saveMoc(moc);
+    mocLogic.saveMoc(moc);
     setState(() {});
   }
 
@@ -593,8 +593,8 @@ class MocScreenState extends State<MocScreen> {
     }
     if (bytes == null) return false; // User cancelled the picker.
 
-    // Spinner only covers the encode + Firestore save, not the user's
-    // gallery-browsing time.
+    // Spinner only covers the encode and size check, not the user's
+    // gallery-browsing time; the write itself runs in the background.
     final progress = messenger.showSnackBar(
       const SnackBar(
         content: Row(
@@ -627,9 +627,9 @@ class MocScreenState extends State<MocScreen> {
   }
 
   /// Clears the MOC image. Returns true (always changes state).
-  Future<bool> _removeImage() async {
+  bool _removeImage() {
     final messenger = ScaffoldMessenger.of(context);
-    await mocLogic.clearMocImage(moc);
+    mocLogic.clearMocImage(moc);
     messenger.showSnackBar(
       const SnackBar(content: Text('Image removed'), duration: Duration(seconds: 2)),
     );

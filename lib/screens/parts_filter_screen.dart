@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:brick_collector/common_libs.dart';
-import 'package:brick_collector/ui/preset_save.dart';
 import 'package:brick_collector/model/filter_preset.dart';
 import 'package:brick_collector/ui/filter_editor.dart';
 import 'package:brick_collector/ui/nav_menu.dart';
@@ -16,23 +15,24 @@ class PartsFilterScreen extends StatefulWidget {
 }
 
 class PartsFilterScreenState extends State<PartsFilterScreen> {
+  /// A copy from [PartsLogic.getPresetById]: edits stay local until Save, so
+  /// backing out discards them.
   FilterPreset? _preset;
   StreamSubscription<List<FilterPreset>>? _presetsSub;
 
   @override
   void initState() {
     super.initState();
-    _resolvePreset(partsLogic.presets);
-    _presetsSub = partsLogic.outPresets.listen(_resolvePreset);
+    // Resolved now so the editor shows on the first frame; the listener covers
+    // a preset that only arrives later (e.g. one created a moment ago).
+    _preset = partsLogic.getPresetById(widget.presetId);
+    _presetsSub = partsLogic.outPresets.listen((_) => _resolvePreset());
   }
 
-  void _resolvePreset(List<FilterPreset> presets) {
+  void _resolvePreset() {
     if (_preset != null) return; // first emission to land wins; don't replace mid-edit
-    final found = presets.cast<FilterPreset?>().firstWhere(
-          (p) => p!.firestoreId == widget.presetId,
-          orElse: () => null,
-        );
-    if (found == null) return;
+    final found = partsLogic.getPresetById(widget.presetId);
+    if (found == null || !mounted) return;
     setState(() => _preset = found);
   }
 
@@ -46,8 +46,12 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
   Widget build(BuildContext context) {
     final preset = _preset;
     if (preset == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      // App bar and drawer so this is never a dead end, e.g. if the preset's
+      // creation was rejected by the server and it never shows up.
+      return Scaffold(
+        appBar: AppBar(title: const Text('Edit filter')),
+        drawer: const Drawer(child: NavMenu()),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
     return Scaffold(
@@ -75,7 +79,6 @@ class PartsFilterScreenState extends State<PartsFilterScreen> {
   void _saveAndView() {
     final preset = _preset;
     if (preset == null) return;
-    savePresetInBackground(context, preset);
-    context.go(ScreenPaths.presetPage(preset.firestoreId!));
+    context.go(ScreenPaths.presetPage(partsLogic.savePreset(preset)));
   }
 }

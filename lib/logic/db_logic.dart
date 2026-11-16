@@ -1,11 +1,12 @@
+import 'dart:async';
+
+import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/cached_inventory_item.dart';
 import 'package:brick_collector/model/cached_source.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/model/filter_preset.dart';
-import 'package:brick_collector/model/moc.dart';
 import 'package:brick_collector/services/group_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Aggregated view of the user's inventory for preset display — one row per
@@ -30,7 +31,10 @@ class AggregatedInventoryRow {
   String? imgUrl;
   int quantity;
 
-  /// For the shared part cards; [quantity] is the owned count.
+  /// For the shared part cards; [quantity] is the owned count. [imgUrl] is
+  /// deliberately not passed on as details: it shows one colour, while
+  /// details.imgUrl is read as the image for the whole part group. The cards
+  /// get per-colour images from the same cache via PartImageResolver.
   CollectablePart toCollectablePart() => CollectablePart(
         part: partNum,
         name: partName,
@@ -42,11 +46,17 @@ class AggregatedInventoryRow {
 }
 
 class DbLogic {
+  final Logger _log = getLogger('DbLogic');
+
   late final Isar _isar;
 
   Isar get isar => _isar;
 
   // --- Isar (FilterPresets, inventory cache) ---
+
+  /// Uses an already opened [isar] instead of [bootstrap], for tests.
+  @visibleForTesting
+  void useIsar(Isar isar) => _isar = isar;
 
   Future<void> bootstrap() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -181,16 +191,23 @@ class DbLogic {
 
     final s = src;
     if (s == null || !GroupService.instance.hasGroup) return;
-    // Fire and forget: with offline persistence the Future only completes on
-    // server ack, and the local toggle must not hang on connectivity.
-    _exclusionsRef.set({
-      'keys': excluded
-          ? FieldValue.arrayUnion([_sourceKey(s.type, s.externalId)])
-          : FieldValue.arrayRemove([_sourceKey(s.type, s.externalId)]),
-    }, SetOptions(merge: true)).catchError((Object e) {
-      // Local state stays authoritative until the next successful write/sync.
-    });
+    // Local state stays authoritative until the next successful write/sync.
+    _writeInBackground(
+      () => _exclusionsRef.set({
+        'keys': excluded
+            ? FieldValue.arrayUnion([_sourceKey(s.type, s.externalId)])
+            : FieldValue.arrayRemove([_sourceKey(s.type, s.externalId)]),
+      }, SetOptions(merge: true)),
+      'Could not sync "${s.name}" being ${excluded ? 'excluded from' : 'included in'} the inventory',
+    );
   }
+
+  /// [filterInventory] with [filter]'s criteria.
+  Future<List<AggregatedInventoryRow>> filterInventoryFor(FilterPreset filter) => filterInventory(
+        categoryIds: (filter.categories ?? const []).map((c) => c.id).toSet(),
+        colorIds: (filter.colors ?? const []).map((c) => c.id).toSet(),
+        searchText: filter.searchText,
+      );
 
   /// Filter & aggregate the inventory cache by preset criteria. Returns one row
   /// per (partNum, colorId) with quantity summed across every matching source.
@@ -201,20 +218,22 @@ class DbLogic {
     Set<int> colorIds = const {},
     String? searchText,
   }) async {
-    final rows = await _isar.cachedInventoryItems.where().findAll();
+    final search = (searchText ?? '').trim();
+    // Filter in Isar so only matching rows are deserialized. `optional` (not a
+    // bare anyOf, which still adds an empty group) keeps unset criteria out.
+    final rows = await _isar.cachedInventoryItems
+        .filter()
+        .optional(colorIds.isNotEmpty, (q) => q.anyOf(colorIds, (q, id) => q.colorIdEqualTo(id)))
+        .and()
+        .optional(categoryIds.isNotEmpty, (q) => q.anyOf(categoryIds, (q, id) => q.partCategoryIdEqualTo(id)))
+        .and()
+        .optional(search.isNotEmpty, (q) => q.partNameContains(search, caseSensitive: false))
+        .findAll();
     final excluded = await _loadExcludedSourceKeys();
-    final search = (searchText ?? '').trim().toLowerCase();
     final aggregated = <String, AggregatedInventoryRow>{};
 
     for (final it in rows) {
       if (excluded.contains(_itemSourceKey(it))) continue;
-      if (colorIds.isNotEmpty && !colorIds.contains(it.colorId)) continue;
-      if (categoryIds.isNotEmpty &&
-          (it.partCategoryId == null || !categoryIds.contains(it.partCategoryId!))) continue;
-      if (search.isNotEmpty) {
-        final name = (it.partName ?? '').toLowerCase();
-        if (!name.contains(search)) continue;
-      }
 
       final key = '${it.partNum}_${it.colorId}';
       final existing = aggregated[key];
@@ -312,7 +331,47 @@ class DbLogic {
     _invalidateExcludedSourceKeys();
     final keys = await _loadExcludedSourceKeys();
     if (keys.isEmpty) return;
-    await _exclusionsRef.set({'keys': keys.toList()});
+    // Merge: a snapshot from an offline cache also reports a missing doc, and a
+    // plain set() would then replace other devices' exclusions on reconnect.
+    _writeInBackground(
+      () => _exclusionsRef.set({'keys': FieldValue.arrayUnion(keys.toList())}, SetOptions(merge: true)),
+      'Could not sync inventory exclusions',
+    );
+  }
+
+  // --- Firestore (background writes) ---
+
+  final StreamController<String> _writeErrors = StreamController.broadcast();
+
+  /// Messages for background writes the server rejected; the app root shows
+  /// them in a SnackBar.
+  Stream<String> get writeErrors => _writeErrors.stream;
+
+  /// Starts [write] without waiting for it. With offline persistence Firestore
+  /// applies a write to its local cache (and so to every snapshot listener)
+  /// right away, but the write's future only completes on server ack, so
+  /// awaiting it would freeze the UI while offline. If the server rejects the
+  /// write, Firestore rolls the local change back and [failure] is reported
+  /// on [writeErrors]. So is anything [write] throws synchronously (e.g. from
+  /// toJson), instead of escaping to the UI caller.
+  void _writeInBackground(Future<void> Function() write, String failure) {
+    unawaited(Future.sync(write).catchError((Object e) {
+      _log.w('$failure: $e');
+      _reportWriteError('$failure: $e');
+    }));
+  }
+
+  final Map<String, DateTime> _writeErrorShownAt = {};
+
+  /// Drops any message already reported in the last 10 s, so writes that keep
+  /// failing (e.g. on every part toggle, even alternating between two
+  /// failures) don't queue a SnackBar per tap.
+  void _reportWriteError(String message) {
+    final now = DateTime.now();
+    _writeErrorShownAt.removeWhere((_, at) => now.difference(at) >= const Duration(seconds: 10));
+    if (_writeErrorShownAt.containsKey(message)) return;
+    _writeErrorShownAt[message] = now;
+    _writeErrors.add(message);
   }
 
   // --- Firestore (Mocs) ---
@@ -328,19 +387,24 @@ class DbLogic {
         );
   }
 
-  Future<void> saveMoc(Moc moc) async {
-    if (moc.firestoreId != null) {
-      await _mocsRef.doc(moc.firestoreId).set(moc.toJson());
-    } else {
-      final docRef = await _mocsRef.add(moc.toJson());
-      moc.firestoreId = docRef.id;
-    }
+  /// Saves [moc] in the background (see [_writeInBackground]) and returns its
+  /// document id, assigning a new one first if the MOC is unsaved.
+  ///
+  /// There is deliberately no client-side size check: Firestore counts bytes
+  /// differently from any local estimate, so a check would either block MOCs
+  /// the server accepts or let through ones it rejects. A rejection (e.g. a
+  /// document over 1 MiB) is reported like any other.
+  String saveMoc(Moc moc) {
+    final id = moc.firestoreId ??= _mocsRef.doc().id;
+    _writeInBackground(() => _mocsRef.doc(id).set(moc.toJson()), 'Could not save "${moc.name}"');
+    return id;
   }
 
-  Future<void> deleteMoc(Moc moc) async {
-    if (moc.firestoreId != null) {
-      await _mocsRef.doc(moc.firestoreId).delete();
-    }
+  /// Deletes [moc] in the background (see [_writeInBackground]).
+  void deleteMoc(Moc moc) {
+    final id = moc.firestoreId;
+    if (id == null) return;
+    _writeInBackground(() => _mocsRef.doc(id).delete(), 'Could not delete "${moc.name}"');
   }
 
   // --- Firestore (FilterPresets) ---
@@ -356,19 +420,28 @@ class DbLogic {
         );
   }
 
-  /// [preset.firestoreId] is assigned before the first await, i.e. by the
-  /// time this returns, so callers can navigate without waiting for the write.
-  /// With offline persistence the returned future only completes on server
-  /// ack; it throws if the server rejects the write.
-  Future<void> savePreset(FilterPreset preset) async {
-    final ref = preset.firestoreId != null ? _presetsRef.doc(preset.firestoreId) : _presetsRef.doc();
-    preset.firestoreId = ref.id;
-    await ref.set(preset.toJson());
+  /// Saves [preset] in the background (see [_writeInBackground]) and returns
+  /// its document id, assigning a new one first if the preset is unsaved.
+  String savePreset(FilterPreset preset) {
+    final id = _presetId(preset);
+    _writeInBackground(() => savePresetAndWait(preset), 'Could not save preset "${preset.name}"');
+    return id;
   }
 
-  Future<void> deletePreset(FilterPreset preset) async {
-    if (preset.firestoreId != null) {
-      await _presetsRef.doc(preset.firestoreId).delete();
-    }
+  /// Like [savePreset], but waits for the server and throws if it rejects the
+  /// write, so it blocks while offline. Only for flows that run in the
+  /// background and must know the outcome.
+  Future<void> savePresetAndWait(FilterPreset preset) async {
+    await _presetsRef.doc(_presetId(preset)).set(preset.toJson());
+  }
+
+  /// [preset]'s document id, assigning a new one if it is unsaved.
+  String _presetId(FilterPreset preset) => preset.firestoreId ??= _presetsRef.doc().id;
+
+  /// Deletes [preset] in the background (see [_writeInBackground]).
+  void deletePreset(FilterPreset preset) {
+    final id = preset.firestoreId;
+    if (id == null) return;
+    _writeInBackground(() => _presetsRef.doc(id).delete(), 'Could not delete preset "${preset.name}"');
   }
 }

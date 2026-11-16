@@ -359,9 +359,9 @@ class PartGroupScreenState extends State<PartGroupScreen> {
     );
   }
 
-  void showSettings() async {
+  void showSettings() {
     moc.hideCompleteGroup = !moc.hideCompleteGroup;
-    await mocLogic.saveMoc(moc);
+    mocLogic.saveMoc(moc);
     setState(() {});
   }
 
@@ -383,7 +383,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
     if (result == null) return;
 
     moc.groupSort = result;
-    await mocLogic.saveMoc(moc);
+    mocLogic.saveMoc(moc);
     setState(() {});
   }
 
@@ -422,7 +422,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
         group.parts.add(p);
       }
     }
-    await mocLogic.saveMoc(moc);
+    mocLogic.saveMoc(moc);
     if (!mounted) return;
     _loadInventoryCounts();
     setState(() {});
@@ -476,21 +476,20 @@ class PartGroupScreenState extends State<PartGroupScreen> {
     // detail screen.
     moc.parts?.removeWhere((p) => p.part == partNum);
     group.parts.clear();
-    await mocLogic.saveMoc(moc);
+    mocLogic.saveMoc(moc);
     if (!mounted) return;
     context.pop();
   }
 
-  void handleCollected(CollectablePart part) async {
+  void handleCollected(CollectablePart part) {
     part.collectedCount = part.quantity;
 
     mocLogic.saveMoc(moc);
     setState(() {});
   }
 
-  void handleDeletePart(CollectablePart part) async {
-    await mocLogic.deletePart(moc, group, part);
-    if (!mounted) return;
+  void handleDeletePart(CollectablePart part) {
+    mocLogic.deletePart(moc, group, part);
     // Last colour gone → nothing left to show, return to the MOC.
     if (group.parts.isEmpty) {
       context.pop();

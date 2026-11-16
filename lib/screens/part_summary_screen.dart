@@ -1,4 +1,5 @@
 import 'package:brick_collector/common_libs.dart';
+import 'package:brick_collector/util/format_age.dart';
 import 'package:brick_collector/model/cached_inventory_item.dart';
 import 'package:brick_collector/model/cached_source.dart';
 import 'package:brick_collector/model/collectable_part.dart';
@@ -467,7 +468,7 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
           const Spacer(),
           if (_lastSyncAt != null)
             Text(
-              'Cache: ${_formatAge(_lastSyncAt!)}',
+              'Cache: ${formatAge(_lastSyncAt!)}',
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
             ),
           IconButton(
@@ -784,11 +785,4 @@ class _PartSummaryScreenState extends State<PartSummaryScreen> {
     );
   }
 
-  String _formatAge(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
 }

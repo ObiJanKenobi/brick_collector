@@ -237,7 +237,7 @@ class AppLogic {
     final merged = mergeParts(moc.parts!, partsList);
     moc.parts = merged;
 
-    await mocLogic.saveMoc(moc);
+    mocLogic.saveMoc(moc);
   }
 
   List<CollectablePart> mergeParts(List<CollectablePart> parts, List<CollectablePart> partsList) {

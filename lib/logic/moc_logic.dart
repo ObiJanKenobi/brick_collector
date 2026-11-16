@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:brick_collector/model/CollectablePartGroup.dart';
 import 'package:brick_collector/model/moc.dart';
@@ -15,29 +16,38 @@ class MocLogic {
   // doc, still well under the 1 MiB document limit.
   static const int _passthroughMaxBytes = 600 * 1024;
 
+  /// Left free when sizing an image, so the parts can still grow (collected
+  /// counts, renames, a few added parts) without hitting Firestore's limit.
+  static const int _growthReserve = 50 * 1000;
+
+  /// Below this much room left in the MOC document, don't attempt an image.
+  static const int _minImageBudget = 20 * 1000;
+
+  /// Images aren't shrunk below this width to fit the document.
+  static const int _minImageWidth = 160;
+
   Stream<List<Moc>> get outMocs => dbLogic.watchMocs();
 
-  Future<Moc> addNewMoc(String name, {String? sourceUrl, String? imageUrl}) async {
-    final newMoc = Moc(name: name);
-    newMoc.sourceUrl = sourceUrl;
-    newMoc.imageUrl = imageUrl;
-    await saveMoc(newMoc);
+  /// Creates a MOC and saves it in the background; its firestoreId is set on
+  /// return.
+  Moc addNewMoc(String name, {String? sourceUrl, String? imageUrl}) {
+    final newMoc = Moc(name: name)
+      ..sourceUrl = sourceUrl
+      ..imageUrl = imageUrl;
+    saveMoc(newMoc);
     return newMoc;
   }
 
-  Future<Moc> saveMoc(Moc moc) async {
-    await dbLogic.saveMoc(moc);
-    return moc;
-  }
+  /// Saves in the background; see [DbLogic.saveMoc].
+  void saveMoc(Moc moc) => dbLogic.saveMoc(moc);
 
-  Future<void> deleteMoc(Moc moc) async {
-    await dbLogic.deleteMoc(moc);
-  }
+  /// Deletes in the background; see [DbLogic.deleteMoc].
+  void deleteMoc(Moc moc) => dbLogic.deleteMoc(moc);
 
-  Future<void> deletePart(Moc moc, CollectablePartGroup group, BrickPart part) async {
+  void deletePart(Moc moc, CollectablePartGroup group, BrickPart part) {
     group.parts.remove(part);
     moc.parts?.remove(part);
-    await saveMoc(moc);
+    saveMoc(moc);
   }
 
   /// Opens the gallery picker. Returns the raw file bytes, or null if the
@@ -53,42 +63,68 @@ class MocLogic {
 
   /// Stores the given image bytes inline on the MOC document as base64.
   /// Small pre-rendered JPEGs are passed through verbatim; larger inputs are
-  /// downscaled with a high-quality filter and re-encoded as JPEG.
+  /// downscaled with a high-quality filter and re-encoded as JPEG. Either is
+  /// shrunk further to fit the room the parts leave in the MOC's Firestore
+  /// document, minus a reserve so the parts can still grow afterwards. The
+  /// image work runs on a background isolate. Throws [MocTooLargeException]
+  /// (leaving the MOC unchanged) if it can't be made to fit.
   Future<void> setMocImageFromBytes(Moc moc, List<int> bytes) async {
     final raw = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+    final partsBytes = moc.documentBytesWithoutImage;
+    final budget = Moc.maxDocumentBytes - partsBytes - _growthReserve;
+    if (budget < _minImageBudget) {
+      throw MocTooLargeException("This MOC's parts already take ${kilobytes(partsBytes)} of the ~1 MB a MOC "
+          'may use, which leaves no room for an image.');
+    }
+    final fitted = await Isolate.run(() => _fitImage(raw, budget));
+    moc.imageBase64 = base64Encode(fitted);
+    saveMoc(moc);
+  }
+
+  /// [raw] as a JPEG whose base64 is at most [budget] bytes. Runs on a
+  /// background isolate, so it only uses its arguments and constants.
+  static Uint8List _fitImage(Uint8List raw, int budget) {
     final decoded = img.decodeImage(raw);
     if (decoded == null) {
       throw const FormatException('Could not decode selected image');
     }
-
-    final Uint8List finalBytes;
-    if (decoded.width <= _maxThumbWidth &&
-        raw.length <= _passthroughMaxBytes &&
-        _isJpeg(raw)) {
-      finalBytes = raw;
-    } else {
-      final resized = decoded.width > _maxThumbWidth
-          ? img.copyResize(
-              decoded,
-              width: _maxThumbWidth,
-              // 'average' is a box filter — the best choice for downscaling
-              // sharp content like LEGO renders. 'nearest' (the default) is
-              // what was making things look blocky.
-              interpolation: img.Interpolation.average,
-            )
-          : decoded;
-      finalBytes = Uint8List.fromList(img.encodeJpg(resized, quality: _jpegQuality));
+    var width = min(decoded.width, _maxThumbWidth);
+    var fitted = decoded.width <= _maxThumbWidth && raw.length <= _passthroughMaxBytes && _isJpeg(raw)
+        ? raw
+        : _encodeJpg(decoded, width);
+    while (_base64Length(fitted.length) > budget) {
+      // JPEG size scales roughly with pixel count, i.e. with width squared.
+      final scale = sqrt(budget / _base64Length(fitted.length)) * 0.9;
+      width = min((width * scale).floor(), width - 1);
+      if (width < _minImageWidth) {
+        throw MocTooLargeException('Could not shrink the image to fit the ${kilobytes(budget)} left in this MOC.');
+      }
+      fitted = _encodeJpg(decoded, width);
     }
-
-    moc.imageBase64 = base64Encode(finalBytes);
-    await saveMoc(moc);
+    return fitted;
   }
+
+  static Uint8List _encodeJpg(img.Image decoded, int width) {
+    final resized = decoded.width > width
+        ? img.copyResize(
+            decoded,
+            width: width,
+            // 'average' is a box filter — the best choice for downscaling
+            // sharp content like LEGO renders. 'nearest' (the default) is
+            // what was making things look blocky.
+            interpolation: img.Interpolation.average,
+          )
+        : decoded;
+    return Uint8List.fromList(img.encodeJpg(resized, quality: _jpegQuality));
+  }
+
+  static int _base64Length(int bytes) => 4 * ((bytes + 2) ~/ 3);
 
   static bool _isJpeg(Uint8List b) =>
       b.length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF;
 
-  Future<void> clearMocImage(Moc moc) async {
+  void clearMocImage(Moc moc) {
     moc.imageBase64 = null;
-    await saveMoc(moc);
+    saveMoc(moc);
   }
 }

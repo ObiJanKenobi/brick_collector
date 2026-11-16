@@ -7,6 +7,7 @@ import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
 import 'package:brick_collector/util/rebrickable_url_parser.dart';
 
 import '../common_libs.dart';
+import '../util/format_age.dart';
 
 class NavMenu extends StatefulWidget {
   const NavMenu({super.key});
@@ -154,7 +155,7 @@ class NavMenuState extends State<NavMenu> {
     final parsed = RebrickableUrlParser.tryParse(input);
 
     if (parsed != null) {
-      final moc = await mocLogic.addNewMoc(
+      final moc = mocLogic.addNewMoc(
         parsed.displayName,
         sourceUrl: parsed.originalUrl,
         imageUrl: parsed.imageUrl,
@@ -185,7 +186,7 @@ class NavMenuState extends State<NavMenu> {
         const SnackBar(content: Text('Unrecognized URL. Please enter a name or a Rebrickable MOC URL.')),
       );
     } else {
-      await mocLogic.addNewMoc(input);
+      mocLogic.addNewMoc(input);
     }
   }
 
@@ -253,7 +254,7 @@ class NavMenuState extends State<NavMenu> {
       future: collectionSyncService.getLastSyncAt(),
       builder: (context, snapshot) {
         final last = snapshot.data;
-        final subtitle = last == null ? 'Never synced' : 'Last: ${_formatSyncTime(last)}';
+        final subtitle = last == null ? 'Never synced' : 'Last: ${formatAge(last)}';
         return ListTile(
           leading: const Icon(Icons.sync, color: AppColors.textSecondary, size: 20),
           title: const Text('Sync Collection', style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
@@ -269,13 +270,6 @@ class NavMenuState extends State<NavMenu> {
     );
   }
 
-  String _formatSyncTime(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
 
   Widget _navItem(BuildContext context, IconData icon, String label, VoidCallback onTap) {
     return ListTile(

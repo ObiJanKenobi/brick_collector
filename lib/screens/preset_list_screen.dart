@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:brick_collector/common_libs.dart';
-import 'package:brick_collector/ui/preset_save.dart';
+import 'package:brick_collector/util/format_age.dart';
 import 'package:brick_collector/model/filter_preset.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
@@ -30,9 +30,13 @@ class PresetListScreenState extends State<PresetListScreen> {
   void initState() {
     super.initState();
     _loadSyncTime();
+    // outPresets replays its current list on subscribe, which runs the first
+    // computation.
     _presetsSub = partsLogic.outPresets.listen(_recomputeStats);
-    _recomputeStats(partsLogic.presets);
   }
+
+  /// Bumped per computation so an older, slower run can't overwrite a newer one.
+  int _statsGeneration = 0;
 
   @override
   void dispose() {
@@ -47,19 +51,14 @@ class PresetListScreenState extends State<PresetListScreen> {
   }
 
   Future<void> _recomputeStats(List<FilterPreset> presets) async {
-    final results = <String, _PresetStats>{};
-    for (final p in presets) {
-      final key = p.firestoreId;
-      if (key == null) continue;
-      final rows = await dbLogic.filterInventory(
-        categoryIds: (p.categories ?? []).map((c) => c.id).toSet(),
-        colorIds: (p.colors ?? []).map((c) => c.id).toSet(),
-        searchText: p.searchText,
-      );
-      final qty = rows.fold<int>(0, (sum, r) => sum + r.quantity);
-      results[key] = _PresetStats(rows.length, qty);
-    }
-    if (!mounted) return;
+    final generation = ++_statsGeneration;
+    final saved = presets.where((p) => p.firestoreId != null).toList();
+    final rows = await Future.wait(saved.map(dbLogic.filterInventoryFor));
+    final results = {
+      for (var i = 0; i < saved.length; i++)
+        saved[i].firestoreId!: _PresetStats(rows[i].length, rows[i].fold<int>(0, (sum, r) => sum + r.quantity)),
+    };
+    if (!mounted || generation != _statsGeneration) return;
     setState(() {
       _stats
         ..clear()
@@ -85,7 +84,7 @@ class PresetListScreenState extends State<PresetListScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    _lastSync == null ? 'Inventory never synced' : 'Inventory: ${_formatAge(_lastSync!)}',
+                    _lastSync == null ? 'Inventory never synced' : 'Inventory: ${formatAge(_lastSync!)}',
                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ),
@@ -244,13 +243,6 @@ class PresetListScreenState extends State<PresetListScreen> {
     );
   }
 
-  String _formatAge(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
 
   Future<void> _addPreset() async {
     final text = await showTextInputDialog(
@@ -260,10 +252,9 @@ class PresetListScreenState extends State<PresetListScreen> {
     );
     if (text == null || text.isEmpty || text.first.trim().isEmpty) return;
     if (!mounted) return;
-    final preset = partsLogic.newPreset(text.first.trim());
-    savePresetInBackground(context, preset);
+    final id = partsLogic.savePreset(partsLogic.newPreset(text.first.trim()));
     // The filter screen shows a spinner until the preset reaches outPresets.
-    context.go(ScreenPaths.partFilterEditPage(preset.firestoreId!));
+    context.go(ScreenPaths.partFilterEditPage(id));
   }
 
   Future<void> _syncCollection() async {

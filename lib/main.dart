@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/logic/db_logic.dart';
 import 'package:brick_collector/logic/moc_logic.dart';
@@ -29,6 +31,10 @@ void main() async {
   FlutterNativeSplash.remove();
 }
 
+/// App-wide messenger, so messages that don't belong to one screen (such as a
+/// rejected background write) can be shown wherever the user is.
+final GlobalKey<ScaffoldMessengerState> rootMessengerKey = GlobalKey();
+
 class MyApp extends StatefulWidget {
   MyApp({super.key});
 
@@ -38,11 +44,32 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _authComplete = false;
+  StreamSubscription<String>? _writeErrorsSub;
+
+  /// Write errors reported before the router app (which owns
+  /// [rootMessengerKey]) is built, e.g. during bootstrap.
+  final List<String> _pendingWriteErrors = [];
 
   @override
   void initState() {
     super.initState();
     _signIn();
+    _writeErrorsSub = dbLogic.writeErrors.listen(_showWriteError);
+  }
+
+  void _showWriteError(String message) {
+    final messenger = rootMessengerKey.currentState;
+    if (messenger == null) {
+      _pendingWriteErrors.add(message);
+      return;
+    }
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  void dispose() {
+    _writeErrorsSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _signIn() async {
@@ -150,7 +177,15 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
+    if (_pendingWriteErrors.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final pending = List.of(_pendingWriteErrors);
+        _pendingWriteErrors.clear();
+        pending.forEach(_showWriteError);
+      });
+    }
     return MaterialApp.router(
+      scaffoldMessengerKey: rootMessengerKey,
       debugShowCheckedModeBanner: false,
       routerConfig: appRouter,
       title: 'Brick Collector',

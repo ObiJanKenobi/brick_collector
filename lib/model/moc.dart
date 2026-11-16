@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:brick_collector/common_libs.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' show DocumentSnapshot;
 
@@ -43,7 +45,32 @@ class Moc {
     moc.firestoreId = doc.id;
     return moc;
   }
+
+  /// Target for sizing the inline image. Firestore rejects documents over
+  /// 1 MiB; sizes here are JSON, an estimate of Firestore's count, so this
+  /// stays below the real limit.
+  static const int maxDocumentBytes = 1000 * 1000;
+
+  /// Approximate size of this MOC's Firestore document.
+  int get documentBytes => documentBytesWithoutImage + (imageBase64?.length ?? 0);
+
+  /// [documentBytes] minus the inline image, i.e. what the parts and settings
+  /// take. Base64 is ASCII, so the image adds exactly its length.
+  int get documentBytesWithoutImage => utf8.encode(jsonEncode(toJson()..remove('imageBase64'))).length;
 }
+
+/// A MOC whose Firestore document would exceed [Moc.maxDocumentBytes].
+class MocTooLargeException implements Exception {
+  MocTooLargeException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Kilobytes for user-facing size messages.
+String kilobytes(int bytes) => '${(bytes / 1000).round()} KB';
 
 enum PartSort {
   // color,

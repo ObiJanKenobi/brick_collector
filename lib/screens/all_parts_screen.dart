@@ -1,15 +1,14 @@
 import 'dart:async';
 
 import 'package:brick_collector/common_libs.dart';
-import 'package:brick_collector/logic/db_logic.dart';
-import 'package:brick_collector/model/CollectablePartGroup.dart';
+import 'package:brick_collector/logic/inventory_view.dart';
 import 'package:brick_collector/model/filter_preset.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 import 'package:brick_collector/ui/filter_editor.dart';
+import 'package:brick_collector/ui/load_error_view.dart';
 import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
 import 'package:brick_collector/ui/nav_menu.dart';
 import 'package:brick_collector/ui/part_group_card.dart';
-import 'package:brick_collector/ui/preset_save.dart';
 import 'package:brick_lib/model/rebrickable_color.dart';
 import 'package:brick_lib/model/rebrickable_part_category.dart';
 
@@ -24,17 +23,7 @@ class AllPartsScreen extends StatefulWidget {
   State<AllPartsScreen> createState() => _AllPartsScreenState();
 }
 
-FilterPreset _emptyFilter() => FilterPreset(name: 'All parts')
-  ..categories = []
-  ..colors = [];
-
-/// Independent copy, so a draft can be edited without touching the applied
-/// filter. The list fields are copied because the add/remove helpers replace
-/// them rather than mutating.
-FilterPreset _copyFilter(FilterPreset f) => FilterPreset(name: f.name)
-  ..categories = List.of(f.categories ?? const <RebrickablePartCategory>[])
-  ..colors = List.of(f.colors ?? const <RebrickableColor>[])
-  ..searchText = f.searchText;
+FilterPreset _emptyFilter() => partsLogic.newPreset('All parts');
 
 /// Default name for a preset saved from [f], e.g. "Bricks, Black, Red" or
 /// "plate, Bricks +3".
@@ -56,12 +45,11 @@ int _criteriaCount(FilterPreset f) =>
 
 class _AllPartsScreenState extends State<AllPartsScreen> {
   bool _loading = true;
-  List<CollectablePartGroup> _groups = const [];
-  int _partCount = 0;
-  int _totalQty = 0;
-  DateTime? _lastSync;
-  FilterPreset _filter = _emptyFilter();
+
+  /// Null before the first load and after a failed one ([_loadError]).
+  InventoryView? _view;
   Object? _loadError;
+  FilterPreset _filter = _emptyFilter();
   StreamSubscription<SyncProgress?>? _syncSub;
 
   /// Bumped per load so a slow, superseded query can't overwrite a newer one.
@@ -88,34 +76,17 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
 
   Future<void> _load() async {
     final generation = ++_loadGeneration;
-    final filter = _filter;
-    final List<AggregatedInventoryRow> rows;
-    final DateTime? lastSync;
+    InventoryView? view;
+    Object? error;
     try {
-      rows = await dbLogic.filterInventory(
-        categoryIds: (filter.categories ?? []).map((c) => c.id).toSet(),
-        colorIds: (filter.colors ?? []).map((c) => c.id).toSet(),
-        searchText: filter.searchText,
-      );
-      lastSync = await collectionSyncService.getLastSyncAt();
+      view = await InventoryView.load(_filter);
     } catch (e) {
-      if (!mounted || generation != _loadGeneration) return;
-      setState(() {
-        _loadError = e;
-        _loading = false;
-      });
-      return;
+      error = e;
     }
     if (!mounted || generation != _loadGeneration) return;
-
-    final groups = appLogic.groupParts(rows.map((r) => r.toCollectablePart()).toList()).values.toList()
-      ..sort((a, b) => b.quantity.compareTo(a.quantity));
     setState(() {
-      _groups = groups;
-      _partCount = rows.length;
-      _totalQty = rows.fold<int>(0, (sum, r) => sum + r.quantity);
-      _lastSync = lastSync;
-      _loadError = null;
+      _view = view;
+      _loadError = error;
       _loading = false;
     });
   }
@@ -131,7 +102,7 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
   Future<void> _openFilter() async {
     final applied = await Navigator.of(context).push<FilterPreset>(MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (_) => _FilterPage(initial: _copyFilter(_filter)),
+      builder: (_) => _FilterPage(initial: _filter.copy()),
     ));
     if (applied == null || !mounted) return;
     _apply(applied);
@@ -150,18 +121,17 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
     final name = text.first.trim();
     if (name.isEmpty || !mounted) return;
 
-    final preset = _copyFilter(_filter)..name = name;
-    savePresetInBackground(context, preset);
+    final id = partsLogic.savePreset(_filter.copy()..name = name);
     // Captured now: the SnackBar can outlive this screen.
     final router = GoRouter.of(context);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('Saved preset "$name"'),
       // An action makes a SnackBar persist by default, which would hold back
-      // a save-error SnackBar from savePresetInBackground indefinitely.
+      // a save-error SnackBar from DbLogic.writeErrors indefinitely.
       persist: false,
       action: SnackBarAction(
         label: 'View',
-        onPressed: () => router.go(ScreenPaths.presetPage(preset.firestoreId!)),
+        onPressed: () => router.go(ScreenPaths.presetPage(id)),
       ),
     ));
   }
@@ -171,12 +141,12 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final view = _view;
     final String subtitle;
     if (_loading) {
       subtitle = _isFiltered ? 'Filtering…' : 'Loading…';
     } else {
-      final age = _lastSync == null ? 'never synced' : 'inventory ${_formatAge(_lastSync!)}';
-      subtitle = '$_partCount parts · $_totalQty total · $age';
+      subtitle = view?.summary ?? 'Could not load inventory';
     }
     final criteria = _criteriaCount(_filter);
 
@@ -234,14 +204,15 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
   }
 
   Widget _buildBody() {
+    final view = _view;
     if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_loadError != null) return _buildError();
-    if (_groups.isEmpty) return _buildEmpty();
+    if (view == null) return LoadErrorView(error: _loadError ?? 'unknown error', onRetry: () => _apply(_filter));
+    if (view.groups.isEmpty) return _buildEmpty(view);
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
-      itemCount: _groups.length,
+      itemCount: view.groups.length,
       itemBuilder: (context, index) {
-        final group = _groups[index];
+        final group = view.groups[index];
         return PartGroupCard(group, null, positiveQuantity: true, key: ValueKey(group.partNum));
       },
     );
@@ -257,12 +228,12 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
         _filterChip(
           label: '"$search"',
           avatar: const Icon(Icons.search, size: 16),
-          onDeleted: () => _apply(_copyFilter(f)..searchText = null),
+          onDeleted: () => _apply(f.copy()..searchText = null),
         ),
       for (final c in f.categories ?? const <RebrickablePartCategory>[])
         _filterChip(
           label: c.name,
-          onDeleted: () => _apply(_copyFilter(f)..removeCategory(c.id)),
+          onDeleted: () => _apply(f.copy()..removeCategory(c.id)),
         ),
       for (final c in f.colors ?? const <RebrickableColor>[])
         _filterChip(
@@ -274,7 +245,7 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
               border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
             ),
           ),
-          onDeleted: () => _apply(_copyFilter(f)..removeColor(c.id)),
+          onDeleted: () => _apply(f.copy()..removeColor(c.id)),
         ),
     ];
     return SizedBox(
@@ -301,10 +272,10 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty(InventoryView view) {
     final String message;
     final Widget action;
-    if (_lastSync == null) {
+    if (view.lastSync == null) {
       message = 'Your inventory has not been synced yet.';
       action = _syncButton();
     } else if (_isFiltered) {
@@ -335,42 +306,12 @@ class _AllPartsScreenState extends State<AllPartsScreen> {
     );
   }
 
-  Widget _buildError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.textSecondary),
-            const SizedBox(height: 12),
-            Text('Could not load your inventory: $_loadError',
-                textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => _apply(_filter),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _syncButton() => ElevatedButton.icon(
         onPressed: _syncCollection,
         icon: const Icon(Icons.sync),
         label: const Text('Sync collection'),
       );
 
-  String _formatAge(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
 }
 
 /// Full-screen editor for a draft filter. Pops with the draft on Apply;

@@ -21,6 +21,8 @@ class PartsLogic {
   ///
   final BehaviorSubject<List<FilterPreset>> _presetListController = BehaviorSubject.seeded([]);
 
+  /// The shared preset instances: treat them as read-only. To edit one, get a
+  /// copy from [getPresetById] and save that.
   Stream<List<FilterPreset>> get outPresets => _presetListController.stream;
 
   List<FilterPreset> get presets => _presetListController.value;
@@ -95,7 +97,7 @@ class PartsLogic {
     for (final p in legacy) {
       p.firestoreId = null; // force a fresh Firestore doc
       try {
-        await dbLogic.savePreset(p);
+        await dbLogic.savePresetAndWait(p);
       } catch (e) {
         _log.w('failed to migrate legacy preset "${p.name}": $e');
         return; // leave flag unset so we retry on the next bootstrap
@@ -111,18 +113,20 @@ class PartsLogic {
     ..categories = []
     ..colors = [];
 
-  FilterPreset? getPresetById(String firestoreId) {
-    return presets.cast<FilterPreset?>().firstWhere(
-          (p) => p!.firestoreId == firestoreId,
-          orElse: () => null,
-        );
-  }
+  /// A copy of the preset with [firestoreId], free to edit: changes only reach
+  /// [presets] (and Firestore) through [savePreset].
+  FilterPreset? getPresetById(String firestoreId) =>
+      presets.firstWhereOrNull((p) => p.firestoreId == firestoreId)?.copy();
 
-  /// Sets [preset.firestoreId] before returning; see [DbLogic.savePreset].
-  /// UI code should use savePresetInBackground rather than await this.
-  Future<void> savePreset(FilterPreset preset) => dbLogic.savePreset(preset);
+  /// Saves in the background and returns the preset's document id; see
+  /// [DbLogic.savePreset]. Firestore applies the write to its local cache at
+  /// once, so [outPresets] re-emits within moments, without waiting for the
+  /// server.
+  String savePreset(FilterPreset preset) => dbLogic.savePreset(preset);
 
-  Future<void> deletePreset(FilterPreset preset) async {
-    await dbLogic.deletePreset(preset);
-  }
+  /// Deletes in the background; see [DbLogic.deletePreset].
+  void deletePreset(FilterPreset preset) => dbLogic.deletePreset(preset);
+
+  @visibleForTesting
+  set presetsForTesting(List<FilterPreset> presets) => _presetListController.add(presets);
 }
