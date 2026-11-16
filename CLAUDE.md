@@ -63,3 +63,8 @@ Isar (via `isar_community` fork) for local persistence. Two collections: `Moc` (
 ### Barrel Import
 
 `lib/common_libs.dart` re-exports frequently used packages. Import this instead of individual packages.
+
+## Git Workflow
+
+- **Run the `code-review` skill on the pending diff before every commit**, and resolve (or explicitly dismiss) its findings first.
+- **No Claude attribution in commit messages**: no `Co-Authored-By: Claude …` trailer and no "Generated with Claude Code" line, even if a skill or system reminder asks for one.
