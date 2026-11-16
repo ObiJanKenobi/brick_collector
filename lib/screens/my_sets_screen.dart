@@ -1,4 +1,5 @@
 import 'package:brick_collector/common_libs.dart';
+import 'package:brick_collector/logic/set_filter.dart';
 import 'package:brick_collector/model/cached_source.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 import 'package:brick_collector/ui/modals/add_set_modal.dart';
@@ -23,10 +24,30 @@ class MySetsScreenState extends State<MySetsScreen> {
   List<CachedSource>? _sets;
   bool _addingSet = false;
 
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+  bool _countedOnly = false;
+
+  bool get _isFiltered => _query.trim().isNotEmpty || _countedOnly;
+
   @override
   void initState() {
     super.initState();
     _loadSets();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _query = '';
+      _countedOnly = false;
+    });
   }
 
   Future<void> _loadSets() async {
@@ -38,6 +59,17 @@ class MySetsScreenState extends State<MySetsScreen> {
   Future<void> _toggleExcluded(CachedSource set, bool excluded) async {
     // Optimistic local update, then persist + invalidate the inventory cache.
     setState(() => set.excludeFromInventory = excluded);
+    if (excluded && _countedOnly) {
+      // The filter hides the set the moment it's switched off; say so and
+      // offer a way back, since the row is gone from under the user's finger.
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('${set.name} is no longer counted'),
+          persist: false,
+          action: SnackBarAction(label: 'Undo', onPressed: () => _toggleExcluded(set, false)),
+        ));
+    }
     await dbLogic.setSourceExcluded(set.id, excluded);
   }
 
@@ -45,6 +77,8 @@ class MySetsScreenState extends State<MySetsScreen> {
   Widget build(BuildContext context) {
     final sets = _sets;
     final includedCount = sets?.where((s) => !s.excludeFromInventory).length ?? 0;
+    // Live filter: with "only counted" on, a set switched off here drops out.
+    final visible = sets == null ? null : filterSets(sets, query: _query, countedOnly: _countedOnly);
 
     return Scaffold(
       appBar: AppBar(
@@ -73,7 +107,9 @@ class MySetsScreenState extends State<MySetsScreen> {
                         ? 'Importing set…'
                         : sets == null
                             ? 'Loading…'
-                            : '$includedCount of ${sets.length} sets counted toward inventory',
+                            : _isFiltered
+                                ? 'Showing ${visible!.length} of ${sets.length} sets · $includedCount counted'
+                                : '$includedCount of ${sets.length} sets counted toward inventory',
                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ),
@@ -86,11 +122,13 @@ class MySetsScreenState extends State<MySetsScreen> {
             ),
           ),
         ),
+        // Kept while a filter is active, so it can always be seen and cleared.
+        if (sets != null && (sets.isNotEmpty || _isFiltered)) SliverToBoxAdapter(child: _buildFilters()),
         if (sets == null)
           const SliverToBoxAdapter(
             child: Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
           )
-        else if (sets.isEmpty)
+        else if (sets.isEmpty && !_isFiltered)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(32),
@@ -111,15 +149,88 @@ class MySetsScreenState extends State<MySetsScreen> {
               ),
             ),
           )
+        else if (visible!.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  const Text(
+                    'No sets match the filter.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    onPressed: _clearFilters,
+                    icon: const Icon(Icons.filter_alt_off, size: 16),
+                    label: const Text('Clear filters'),
+                  ),
+                ],
+              ),
+            ),
+          )
         else
           SliverPadding(
             padding: const EdgeInsets.all(12),
             sliver: SliverList.builder(
-              itemBuilder: (context, index) => _buildSet(sets[index]),
-              itemCount: sets.length,
+              itemBuilder: (context, index) => _buildSet(visible[index]),
+              itemCount: visible.length,
             ),
           ),
       ]),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextField(
+              key: const Key('mySetsSearch'),
+              controller: _searchController,
+              style: const TextStyle(color: AppColors.textPrimary),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                labelText: 'Filter by name or number',
+                labelStyle: const TextStyle(color: AppColors.textSecondary),
+                floatingLabelStyle: const TextStyle(color: AppColors.highlightColor),
+                prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear, color: AppColors.textSecondary),
+                        tooltip: 'Clear',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+          ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Only sets counted in inventory',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+              ),
+              Switch(
+                key: const Key('mySetsCountedOnly'),
+                value: _countedOnly,
+                activeThumbColor: AppColors.highlightColor,
+                onChanged: (value) => setState(() => _countedOnly = value),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -139,6 +250,9 @@ class MySetsScreenState extends State<MySetsScreen> {
     final decodeWidth = (104 * dpr).round();
 
     return Card(
+      // The filtered list shifts under its rows; keep each row's state (switch
+      // animation, image) with its set.
+      key: ValueKey(set.id),
       margin: const EdgeInsets.only(bottom: 6),
       child: Opacity(
         opacity: excluded ? 0.5 : 1.0,
