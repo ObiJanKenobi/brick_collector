@@ -2,14 +2,14 @@ name: brick_collector
 description: Import Rebrickable Parts and collet them
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.2+1
+version: 1.0.3+1
 # Offset added to the git commit count to form the Android versionCode.
 # Read by android/app/build.gradle and scripts/build_version.sh - bump it to
 # jump past a versionCode that is already taken in Firebase / Play.
 buildModifier: 0
 # Release notes for the next Firebase App Distribution build.
 # Read by scripts/upload_firebase.sh; update this before each release.
-changes: Browse your whole synced inventory in the new All Parts screen and filter it on the fly, then save a filter as a preset. Saving presets no longer hangs while offline.
+changes: Saving no longer waits for the server, so nothing hangs while offline. MOC images are shrunk to fit, preset edits you back out of are discarded, and All Parts and presets refresh after any sync.
 
 environment:
 
