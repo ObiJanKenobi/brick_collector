@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:brick_collector/common_libs.dart';
+import 'package:brick_collector/ui/preset_save.dart';
 import 'package:brick_collector/logic/db_logic.dart';
-import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/model/filter_preset.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
@@ -79,7 +79,7 @@ class _PresetScreenState extends State<PresetScreen> {
   }
 
   Widget _buildScaffold(FilterPreset preset) {
-    final parts = _rows.map(_toCollectablePart).toList();
+    final parts = _rows.map((r) => r.toCollectablePart()).toList();
     final groups = appLogic.groupParts(parts).values.toList()
       ..sort((a, b) => b.quantity.compareTo(a.quantity));
     final totalQty = _rows.fold<int>(0, (sum, r) => sum + r.quantity);
@@ -179,17 +179,6 @@ class _PresetScreenState extends State<PresetScreen> {
     );
   }
 
-  CollectablePart _toCollectablePart(AggregatedInventoryRow r) {
-    return CollectablePart(
-      part: r.partNum,
-      name: r.partName,
-      color: r.colorId.toString(),
-      colorName: r.colorName,
-      rgb: r.rgb,
-      quantity: r.quantity,
-    );
-  }
-
   String _formatAge(DateTime dt) {
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 1) return 'just now';
@@ -213,9 +202,9 @@ class _PresetScreenState extends State<PresetScreen> {
     if (text == null || text.isEmpty) return;
     final newName = text.first.trim();
     if (newName.isEmpty) return;
-    preset.name = newName;
-    await partsLogic.savePreset(preset);
     if (!mounted) return;
+    preset.name = newName;
+    savePresetInBackground(context, preset);
     setState(() {});
   }
 

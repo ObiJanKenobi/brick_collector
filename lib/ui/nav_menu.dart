@@ -99,6 +99,7 @@ class NavMenuState extends State<NavMenu> {
                   padding: EdgeInsets.zero,
                   children: [
                     _navItem(context, Icons.home_outlined, 'MOCs', () => context.go(ScreenPaths.home)),
+                    _navItem(context, Icons.inventory_2_outlined, 'All Parts', () => context.go(ScreenPaths.allParts)),
                     _navItem(context, Icons.filter_list, 'Presets', () => context.go(ScreenPaths.parts)),
                     _navItem(context, Icons.widgets_outlined, 'My Sets', () => context.go(ScreenPaths.mySets)),
                     _navItem(context, Icons.center_focus_strong_outlined, 'Count Pieces', () => context.go(ScreenPaths.pieceCounter)),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:brick_collector/common_libs.dart';
+import 'package:brick_collector/ui/preset_save.dart';
 import 'package:brick_collector/model/filter_preset.dart';
 import 'package:brick_collector/services/collection_sync_service.dart';
 import 'package:brick_collector/ui/modals/sync_progress_modal.dart';
@@ -258,8 +259,10 @@ class PresetListScreenState extends State<PresetListScreen> {
       title: 'Create a new filter preset',
     );
     if (text == null || text.isEmpty || text.first.trim().isEmpty) return;
-    final preset = await partsLogic.addNewPreset(text.first.trim());
     if (!mounted) return;
+    final preset = partsLogic.newPreset(text.first.trim());
+    savePresetInBackground(context, preset);
+    // The filter screen shows a spinner until the preset reaches outPresets.
     context.go(ScreenPaths.partFilterEditPage(preset.firestoreId!));
   }
 

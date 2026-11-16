@@ -1,5 +1,6 @@
 import 'package:brick_collector/model/cached_inventory_item.dart';
 import 'package:brick_collector/model/cached_source.dart';
+import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/model/filter_preset.dart';
 import 'package:brick_collector/model/moc.dart';
 import 'package:brick_collector/services/group_service.dart';
@@ -28,6 +29,16 @@ class AggregatedInventoryRow {
   String? rgb;
   String? imgUrl;
   int quantity;
+
+  /// For the shared part cards; [quantity] is the owned count.
+  CollectablePart toCollectablePart() => CollectablePart(
+        part: partNum,
+        name: partName,
+        color: colorId.toString(),
+        colorName: colorName,
+        rgb: rgb,
+        quantity: quantity,
+      );
 }
 
 class DbLogic {
@@ -345,13 +356,14 @@ class DbLogic {
         );
   }
 
+  /// [preset.firestoreId] is assigned before the first await, i.e. by the
+  /// time this returns, so callers can navigate without waiting for the write.
+  /// With offline persistence the returned future only completes on server
+  /// ack; it throws if the server rejects the write.
   Future<void> savePreset(FilterPreset preset) async {
-    if (preset.firestoreId != null) {
-      await _presetsRef.doc(preset.firestoreId).set(preset.toJson());
-    } else {
-      final docRef = await _presetsRef.add(preset.toJson());
-      preset.firestoreId = docRef.id;
-    }
+    final ref = preset.firestoreId != null ? _presetsRef.doc(preset.firestoreId) : _presetsRef.doc();
+    preset.firestoreId = ref.id;
+    await ref.set(preset.toJson());
   }
 
   Future<void> deletePreset(FilterPreset preset) async {

@@ -1,4 +1,5 @@
 import 'package:brick_collector/model/CollectablePartGroup.dart';
+import 'package:brick_collector/screens/all_parts_screen.dart';
 import 'package:brick_collector/screens/group_setup_screen.dart';
 import 'package:brick_collector/screens/moc_list_screen.dart';
 import 'package:brick_collector/screens/moc_screen.dart';
@@ -23,6 +24,7 @@ class ScreenPaths {
   static const String setup = '/setup';
   static const String home = '/home';
   static const String parts = '/parts';
+  static const String allParts = '/allparts';
   static const String mySets = '/sets';
   static const String pieceCounter = '/count';
   static const String settings = '/settings';
@@ -57,6 +59,7 @@ final appRouter = GoRouter(
     AppRoute(ScreenPaths.setup, (_) => const GroupSetupScreen()),
     AppRoute(ScreenPaths.home, (_) => const MocListScreen()),
     AppRoute(ScreenPaths.parts, (_) => const PresetListScreen()),
+    AppRoute(ScreenPaths.allParts, (_) => const AllPartsScreen()),
     AppRoute(ScreenPaths.mySets, (_) => const MySetsScreen()),
     AppRoute(ScreenPaths.pieceCounter, (_) => const PieceCounterScreen()),
     AppRoute('/partgroup/:partNum', (s) {

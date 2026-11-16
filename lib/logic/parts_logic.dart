@@ -106,14 +106,10 @@ class PartsLogic {
     _log.i('migrated ${legacy.length} legacy preset(s) to Firestore');
   }
 
-  Future<FilterPreset> addNewPreset(String name) async {
-    final newPreset = FilterPreset(name: name)
-      ..categories = []
-      ..colors = [];
-
-    await savePreset(newPreset);
-    return newPreset;
-  }
+  /// An empty, unsaved preset. Persist it with [savePreset].
+  FilterPreset newPreset(String name) => FilterPreset(name: name)
+    ..categories = []
+    ..colors = [];
 
   FilterPreset? getPresetById(String firestoreId) {
     return presets.cast<FilterPreset?>().firstWhere(
@@ -122,10 +118,9 @@ class PartsLogic {
         );
   }
 
-  Future<FilterPreset> savePreset(FilterPreset preset) async {
-    await dbLogic.savePreset(preset);
-    return preset;
-  }
+  /// Sets [preset.firestoreId] before returning; see [DbLogic.savePreset].
+  /// UI code should use savePresetInBackground rather than await this.
+  Future<void> savePreset(FilterPreset preset) => dbLogic.savePreset(preset);
 
   Future<void> deletePreset(FilterPreset preset) async {
     await dbLogic.deletePreset(preset);
