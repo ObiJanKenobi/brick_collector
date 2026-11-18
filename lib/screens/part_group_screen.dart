@@ -7,6 +7,7 @@ import 'package:brick_collector/services/part_image_resolver.dart';
 import 'package:brick_collector/ui/StripedContainer.dart';
 import 'package:brick_collector/ui/app_colors.dart';
 import 'package:brick_collector/ui/back_button.dart';
+import 'package:brick_collector/ui/rgb_color.dart';
 import 'package:brick_collector/ui/smart_part_image.dart';
 import 'package:brick_collector/ui/modals/add_part_modal.dart';
 import 'package:brick_collector/ui/modals/collect_modal.dart';
@@ -18,16 +19,10 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PartGroupScreen extends StatefulWidget {
-  final CollectablePartGroup group;
-  final Moc moc;
+  /// A MOC's part, or a set's ([PartRouteData.forSet]).
+  final PartRouteData route;
 
-  /// See [PartRouteData].
-  final VoidCallback? onSave;
-  final bool collectable;
-  final bool editable;
-
-  const PartGroupScreen(this.group, this.moc,
-      {this.onSave, this.collectable = true, this.editable = true, super.key});
+  const PartGroupScreen(this.route, {super.key});
 
   @override
   State<StatefulWidget> createState() => PartGroupScreenState();
@@ -40,18 +35,18 @@ class PartGroupScreenState extends State<PartGroupScreen> {
   List<String> _headerCandidates = const [];
   NeededColor? _topNeed;
 
-  CollectablePartGroup get group => widget.group;
+  CollectablePartGroup get group => widget.route.group;
 
-  Moc get moc => widget.moc;
+  Moc get moc => widget.route.moc;
 
 
-  bool get _collectable => widget.collectable;
-  bool get _editable => widget.editable;
+  bool get _collectable => widget.route.collectable;
+  bool get _editable => widget.route.editable;
 
   void _save() {
-    final onSave = widget.onSave;
+    final onSave = widget.route.onSave;
     if (onSave != null) {
-      onSave();
+      onSave(); // a set's part (PartRouteData.forSet): never saved as a MOC
     } else {
       mocLogic.saveMoc(moc);
     }
@@ -352,9 +347,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
                 aspectRatio: 1,
                 child: anyColor
                     ? const DiagonalStripePatternView()
-                    : ColoredBox(
-                        color: HexColor.fromHex(part.rgb!),
-                      ),
+                    : ColoredBox(color: colorFromRgb(part.rgb) ?? AppColors.surfaceLight),
               ),
               title: Text("${part.colorName}"),
               subtitle: Text(

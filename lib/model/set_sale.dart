@@ -47,21 +47,21 @@ class SetSale {
     }
   }
 
-  /// Takes the counts the user changed on [parts] into this sale. A count
-  /// still showing what [applyTo] set is kept as stored: it may exceed a
-  /// quantity that shrank for now, and comes back if the inventory regrows.
-  /// Entries for parts not in [parts] are kept too, so a partial or empty
-  /// inventory cache can't wipe progress.
-  void readFrom(Iterable<CollectablePart> parts) {
-    for (final part in parts) {
-      if (part.collectedCount == _shown(part)) continue;
-      if (part.collectedCount > 0) {
-        collected[part.partColorKey] = part.collectedCount;
-      } else {
-        collected.remove(part.partColorKey);
-      }
-    }
+  /// Takes the counts the user changed on [parts] into this sale and returns
+  /// just those (0 for a cleared count), for saving. A count still showing
+  /// what [applyTo] set is kept as stored: it may exceed a quantity that
+  /// shrank for now, and comes back if the inventory regrows. Entries for
+  /// parts not in [parts] are kept too, so a partial or empty inventory cache
+  /// can't wipe progress.
+  Map<String, int> readFrom(Iterable<CollectablePart> parts) {
+    final changed = changesIn(parts);
+    changed.forEach((key, count) => count > 0 ? collected[key] = count : collected.remove(key));
+    return changed;
   }
+
+  /// What [readFrom] would take from [parts], without taking it.
+  Map<String, int> changesIn(Iterable<CollectablePart> parts) =>
+      {for (final part in parts) if (part.collectedCount != _shown(part)) part.partColorKey: part.collectedCount};
 
   int _shown(CollectablePart part) => min(collected[part.partColorKey] ?? 0, part.quantity);
 }

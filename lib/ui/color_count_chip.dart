@@ -1,5 +1,6 @@
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/ui/StripedContainer.dart';
+import 'package:brick_collector/ui/rgb_color.dart';
 
 /// A colour swatch stamped with a quantity, followed by the colour name in a
 /// fixed-width column.
@@ -35,11 +36,7 @@ class ColorCountChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = anyColor
-        ? Colors.grey
-        : ((rgb != null && rgb!.length == 6)
-            ? HexColor.fromHex(rgb!)
-            : AppColors.surfaceLight);
+    final Color color = anyColor ? Colors.grey : (colorFromRgb(rgb) ?? AppColors.surfaceLight);
     final bool isDark = color.computeLuminance() < 0.4;
     final String label = '$quantity';
     final double scale = context.colorChipScale;

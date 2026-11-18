@@ -5,27 +5,36 @@ import 'package:brick_collector/services/part_image_resolver.dart';
 import 'package:brick_collector/ui/app_colors.dart';
 import 'package:brick_collector/ui/color_count_chip.dart';
 import 'package:brick_collector/ui/modals/collect_modal.dart';
+import 'package:brick_collector/ui/rgb_color.dart';
 import 'package:brick_collector/ui/smart_part_image.dart';
 import 'package:brick_collector/ui/StripedContainer.dart';
 import 'package:brick_collector/common_libs.dart';
+
+/// How a set's parts behave on their cards and part screen, which show them
+/// through an unsaved MOC; see [PartRouteData.forSet].
+class SetPartsMode {
+  const SetPartsMode({required this.onSave, required this.collectable});
+
+  /// Saves the set's collected counts; never saves the MOC.
+  final VoidCallback onSave;
+
+  /// Whether tapping a colour collects it.
+  final bool collectable;
+}
 
 class PartGroupCard extends StatefulWidget {
   final CollectablePartGroup group;
   final Moc? moc;
   final bool positiveQuantity;
 
-  /// Passed on to the part screen; see [PartRouteData].
-  final VoidCallback? onSave;
-  final bool collectable;
-  final bool editable;
+  /// How a set's parts behave; null for a MOC.
+  final SetPartsMode? setMode;
 
   const PartGroupCard(
     this.group,
     this.moc, {
     this.positiveQuantity = false,
-    this.onSave,
-    this.collectable = true,
-    this.editable = true,
+    this.setMode,
     super.key,
   });
 
@@ -404,7 +413,7 @@ class PartGroupCardState extends State<PartGroupCard> {
       );
     }
 
-    final Color color = anyColor ? Colors.grey : HexColor.fromHex(part.rgb!);
+    final Color color = anyColor ? Colors.grey : (colorFromRgb(part.rgb) ?? AppColors.surfaceLight);
     final bool completed = part.completed;
     final bool isDark = color.computeLuminance() < 0.4;
     final String label = completed ? '\u2713' : '-${part.remaining}';
@@ -414,7 +423,7 @@ class PartGroupCardState extends State<PartGroupCard> {
       onTap: () {
         if (_shopping) {
           context.push(ScreenPaths.partSummary(part.part ?? ''), extra: part);
-        } else if (widget.collectable) {
+        } else if (widget.setMode?.collectable ?? true) {
           _showCollectModal(part);
         } else if (moc != null) {
           _openPartScreen(moc!);
@@ -476,10 +485,12 @@ class PartGroupCardState extends State<PartGroupCard> {
   }
 
   void _openPartScreen(Moc m) {
+    final mode = widget.setMode;
     context.push(
       ScreenPaths.partGroup(group.partNum),
-      extra: PartRouteData(group, m,
-          onSave: widget.onSave, collectable: widget.collectable, editable: widget.editable),
+      extra: mode == null
+          ? PartRouteData(group, m)
+          : PartRouteData.forSet(group, m, onSave: mode.onSave, collectable: mode.collectable),
     );
   }
 

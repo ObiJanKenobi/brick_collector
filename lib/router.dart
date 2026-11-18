@@ -49,6 +49,18 @@ class ScreenPaths {
 }
 
 class PartRouteData {
+  /// A MOC's part: collectable and editable, saved with the MOC.
+  PartRouteData(this.group, this.moc)
+      : onSave = null,
+        collectable = true,
+        editable = true;
+
+  /// A set's part, shown through an unsaved [moc]: changes go to [onSave],
+  /// never into the MOC list. Not editable, as a set's parts come from
+  /// Rebrickable.
+  PartRouteData.forSet(this.group, this.moc, {required VoidCallback this.onSave, required this.collectable})
+      : editable = false;
+
   final CollectablePartGroup group;
   final Moc moc;
 
@@ -58,11 +70,8 @@ class PartRouteData {
   /// Whether colours can be collected (a set outside Verkauf can't).
   final bool collectable;
 
-  /// Whether colours can be added, edited and deleted. Off for a set, whose
-  /// parts come from Rebrickable.
+  /// Whether colours can be added, edited and deleted.
   final bool editable;
-
-  PartRouteData(this.group, this.moc, {this.onSave, this.collectable = true, this.editable = true});
 }
 
 /// Routing table, matches string paths to UI Screens, optionally parses params from the paths
@@ -77,9 +86,7 @@ final appRouter = GoRouter(
     AppRoute(ScreenPaths.mySets, (_) => const MySetsScreen()),
     AppRoute(ScreenPaths.pieceCounter, (_) => const PieceCounterScreen()),
     AppRoute('/partgroup/:partNum', (s) {
-      final data = s.extra! as PartRouteData;
-      return PartGroupScreen(data.group, data.moc,
-          onSave: data.onSave, collectable: data.collectable, editable: data.editable);
+      return PartGroupScreen(s.extra! as PartRouteData);
     }, useFade: true),
     AppRoute('/partsummary/:partNum', (s) {
       final part = s.extra! as CollectablePart;
@@ -116,7 +123,8 @@ final appRouter = GoRouter(
     }, useFade: true),
     AppRoute('/set/:setNum', (s) {
       // extra only gives the name a head start; the screen loads by number.
-      return SetScreen(s.pathParameters['setNum']!, initial: s.extra as CachedSource?);
+      final extra = s.extra;
+      return SetScreen(s.pathParameters['setNum']!, initial: extra is CachedSource ? extra : null);
     }, useFade: true),
     AppRoute(ScreenPaths.detail, (s) {
       final moc = s.extra! as Moc;

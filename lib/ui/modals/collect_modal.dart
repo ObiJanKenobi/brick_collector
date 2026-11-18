@@ -1,6 +1,7 @@
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/ui/StripedContainer.dart';
+import 'package:brick_collector/ui/rgb_color.dart';
 
 class CollectModal extends StatefulWidget {
   final CollectablePart part;
@@ -83,7 +84,7 @@ class CollectModalState extends State<CollectModal> {
 
   Widget _header() {
     final bool anyColor = part.color == "9999" || part.colorName == "No Color/Any Color";
-    final Color swatchColor = anyColor || part.rgb == null ? AppColors.surfaceLight : HexColor.fromHex(part.rgb!);
+    final Color swatchColor = (anyColor ? null : colorFromRgb(part.rgb)) ?? AppColors.surfaceLight;
 
     return Row(
       children: [

@@ -434,13 +434,33 @@ class DbLogic {
         .map((doc) => SetSale.fromJson(doc.data() as Map<String, dynamic>?));
   }
 
-  /// Saves [sale] in the background (see [_writeInBackground]).
-  void saveSetSale(String setNum, SetSale sale) {
+  /// Merges the given changes into [setNum]'s sale in the background (see
+  /// [_writeInBackground]). Only what changed is written, so two devices
+  /// collecting the same set at once don't overwrite each other's counts.
+  /// [collected] maps part keys to new counts; 0 removes the entry.
+  void updateSetSale(String setNum, {bool? active, bool? hideComplete, Map<String, int> collected = const {}}) {
+    final fields = setSaleFields(active: active, hideComplete: hideComplete, collected: collected);
+    if (fields.isEmpty) return;
     _writeInBackground(
-      () => _setSalesRef.doc(setNum).set(sale.toJson()),
+      () => _setSalesRef.doc(setNum).set(fields, SetOptions(merge: true)),
       'Could not save the Verkauf progress of $setNum',
     );
   }
+
+  /// The fields [updateSetSale] merges into a sale document. [deleteField]
+  /// marks an entry to remove; tests pass their own marker.
+  static Map<String, Object> setSaleFields({
+    bool? active,
+    bool? hideComplete,
+    Map<String, int> collected = const {},
+    Object Function() deleteField = FieldValue.delete,
+  }) =>
+      {
+        if (active != null) 'active': active,
+        if (hideComplete != null) 'hideComplete': hideComplete,
+        if (collected.isNotEmpty)
+          'collected': {for (final e in collected.entries) e.key: e.value > 0 ? e.value : deleteField()},
+      };
 
   // --- Firestore (FilterPresets) ---
 

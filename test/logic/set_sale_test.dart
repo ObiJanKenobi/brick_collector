@@ -1,3 +1,4 @@
+import 'package:brick_collector/logic/db_logic.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/model/set_sale.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -46,17 +47,33 @@ void main() {
       expect(brick.collectedCount, 2);
 
       plate.collectedCount = 1; // the user changes only the plate
-      sale.readFrom([brick, plate]);
+      expect(sale.readFrom([brick, plate]), {'3020_1': 1});
       expect(sale.collected, {'3001_4': 4, '3020_1': 1});
     });
 
     test('readFrom stores counts, drops zeros, and keeps unknown parts', () {
       final sale = SetSale(collected: {'3001_4': 1, '3020_1': 2, '9999_0': 7});
-      sale.readFrom([
+      final changed = sale.readFrom([
         _part('3001', '4', 3, collected: 3),
         _part('3020', '1', 2),
       ]);
+      expect(changed, {'3001_4': 3, '3020_1': 0}, reason: 'only what changed, 0 for a cleared count');
       expect(sale.collected, {'3001_4': 3, '9999_0': 7});
+    });
+  });
+
+  group('DbLogic.setSaleFields', () {
+    test('holds only what changed, with cleared counts marked for deletion', () {
+      final fields = DbLogic.setSaleFields(collected: {'3001_4': 2, '3020_1': 0}, deleteField: () => 'DELETE');
+      expect(fields, {
+        'collected': {'3001_4': 2, '3020_1': 'DELETE'}
+      });
+    });
+
+    test('holds the flags that were given', () {
+      expect(DbLogic.setSaleFields(active: true), {'active': true});
+      expect(DbLogic.setSaleFields(hideComplete: false), {'hideComplete': false});
+      expect(DbLogic.setSaleFields(), isEmpty);
     });
   });
 }

@@ -44,10 +44,15 @@ class SetScreenState extends State<SetScreen> {
   /// as a MOC.
   Moc? _moc;
 
-  /// Null until the first snapshot; the Verkauf toggle waits for it so a save
-  /// can't replace progress that hasn't been read yet.
+  /// Null until the first snapshot; the Verkauf toggle waits for it, so it
+  /// starts from the saved progress.
   SetSale? _sale;
   StreamSubscription<SetSale>? _saleSub;
+
+  /// The progress stream failed and has ended, so what's shown may be stale:
+  /// the toggles and collecting wait for a retry. Saving counts against stale
+  /// progress could undo another device's.
+  bool _saleFailed = false;
 
   PartSort _sort = PartSort.nameAsc;
 
@@ -57,6 +62,11 @@ class SetScreenState extends State<SetScreen> {
   void initState() {
     super.initState();
     _loadParts();
+    _watchSale();
+  }
+
+  void _watchSale() {
+    _saleSub?.cancel();
     _saleSub = dbLogic.watchSetSale(_setNum).listen(_onSale, onError: _onSaleError);
   }
 
@@ -95,30 +105,26 @@ class SetScreenState extends State<SetScreen> {
   void _onSale(SetSale sale) {
     final list = _list;
     if (list != null) sale.applyTo(list.parts);
-    setState(() => _sale = sale);
+    setState(() {
+      _sale = sale;
+      _saleFailed = false;
+    });
   }
 
   void _onSaleError(Object e) {
     if (!mounted) return;
+    setState(() => _saleFailed = true);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not load the Verkauf progress: $e')));
-  }
-
-  void _saveSale() {
-    final sale = _sale;
-    if (sale == null) return;
-    final list = _list;
-    if (list != null) sale.readFrom(list.parts);
-    dbLogic.saveSetSale(_setNum, sale);
   }
 
   void _toggleSelling() {
     setState(() => _sale!.active = !_sale!.active);
-    _saveSale();
+    dbLogic.updateSetSale(_setNum, active: _sale!.active);
   }
 
   void _toggleHideComplete() {
     setState(() => _sale!.hideComplete = !_sale!.hideComplete);
-    _saveSale();
+    dbLogic.updateSetSale(_setNum, hideComplete: _sale!.hideComplete);
   }
 
   /// A card's collect modal closed. It reports this whether or not anything
@@ -136,10 +142,14 @@ class SetScreenState extends State<SetScreen> {
     final sale = _sale;
     final list = _list;
     if (sale != null && list != null) {
-      final before = Map.of(sale.collected);
-      sale.readFrom(list.parts);
-      if (!const MapEquality<String, int>().equals(before, sale.collected)) {
-        dbLogic.saveSetSale(_setNum, sale);
+      if (!_saleFailed) {
+        final changed = sale.readFrom(list.parts);
+        if (changed.isNotEmpty) dbLogic.updateSetSale(_setNum, collected: changed);
+      } else if (sale.changesIn(list.parts).isNotEmpty) {
+        // Collected on a part screen opened before the stream failed.
+        sale.applyTo(list.parts);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Not saved: the Verkauf progress could not be loaded. Retry it first.')));
       }
     }
     setState(() {});
@@ -208,7 +218,7 @@ class SetScreenState extends State<SetScreen> {
           children: [
             TextButton.icon(
               key: const Key('setVerkauf'),
-              onPressed: _sale == null ? null : _toggleSelling,
+              onPressed: _sale == null || _saleFailed ? null : _toggleSelling,
               icon: Icon(selling ? Icons.sell : Icons.sell_outlined,
                   color: selling ? AppColors.highlightColor : AppColors.textPrimary),
               label: Text(
@@ -222,7 +232,7 @@ class SetScreenState extends State<SetScreen> {
             IconButton(onPressed: _sortParts, icon: const Icon(Icons.sort), tooltip: 'Sort'),
             if (selling)
               IconButton(
-                onPressed: _toggleHideComplete,
+                onPressed: _saleFailed ? null : _toggleHideComplete,
                 icon: Icon(
                   hideComplete ? Icons.visibility_off : Icons.visibility_outlined,
                   color: hideComplete ? AppColors.highlightColor : null,
@@ -230,6 +240,13 @@ class SetScreenState extends State<SetScreen> {
                 tooltip: hideComplete ? 'Show completed' : 'Hide completed',
               ),
             const Spacer(),
+            if (_saleFailed)
+              IconButton(
+                key: const Key('setRetrySale'),
+                onPressed: _watchSale,
+                icon: const Icon(Icons.sync_problem, color: AppColors.highlightColor),
+                tooltip: 'Retry loading the Verkauf progress',
+              ),
             IconButton(
                 onPressed: _openOnRebrickable, icon: const Icon(Icons.open_in_browser), tooltip: 'Rebrickable'),
           ],
@@ -277,9 +294,7 @@ class SetScreenState extends State<SetScreen> {
             groups[index],
             _moc,
             positiveQuantity: !selling,
-            onSave: _saveIfChanged,
-            collectable: selling,
-            editable: false,
+            setMode: SetPartsMode(onSave: _saveIfChanged, collectable: selling && !_saleFailed),
             key: ValueKey(groups[index].partNum),
           ),
           itemCount: groups.length,
