@@ -2,14 +2,14 @@ name: brick_collector
 description: Import Rebrickable Parts and collet them
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.3+1
+version: 1.0.4+1
 # Offset added to the git commit count to form the Android versionCode.
 # Read by android/app/build.gradle and scripts/build_version.sh - bump it to
 # jump past a versionCode that is already taken in Firebase / Play.
 buildModifier: 0
 # Release notes for the next Firebase App Distribution build.
 # Read by scripts/upload_firebase.sh; update this before each release.
-changes: Saving no longer waits for the server, so nothing hangs while offline. MOC images are shrunk to fit, preset edits you back out of are discarded, and All Parts and presets refresh after any sync.
+changes: Tap a set in My Sets to see its parts, spares included, and turn on Verkauf to collect them back out of your inventory to sell the set, with progress shared across devices. Requests to Rebrickable are now spaced out so the app stays within its rate limit.
 
 environment:
 
