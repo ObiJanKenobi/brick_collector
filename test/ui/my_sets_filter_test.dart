@@ -1,9 +1,11 @@
 import 'package:brick_collector/logic/db_logic.dart';
 import 'package:brick_collector/model/cached_source.dart';
 import 'package:brick_collector/screens/my_sets_screen.dart';
+import 'package:brick_collector/ui/modals/alternate_builds_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 
 CachedSource _set(String number, String name, {bool excluded = false}) => CachedSource()
   ..type = CachedSourceType.set
@@ -86,6 +88,47 @@ void main() {
       await tester.tap(find.text('Undo'));
       await tester.pumpAndSettle();
       expect(find.text('Millennium Falcon'), findsOneWidget);
+    });
+  });
+
+  group('My Sets row', () {
+    setUp(() => GetIt.I.registerSingleton<DbLogic>(_FakeDbLogic([_set('75192-1', 'Millennium Falcon')])));
+    tearDown(() => GetIt.I.reset());
+
+    /// With a router, so a row tap can push the set's parts page (stubbed).
+    Future<void> pump(WidgetTester tester) async {
+      final router = GoRouter(routes: [
+        GoRoute(path: '/', builder: (_, __) => const MySetsScreen()),
+        GoRoute(path: '/set/:setNum', builder: (_, s) => Text('Parts of ${s.pathParameters['setNum']}')),
+      ]);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+    }
+
+    Finder inRow(Finder matching) => find.descendant(
+        of: find.ancestor(of: find.text('Millennium Falcon'), matching: find.byType(Card)), matching: matching);
+
+    testWidgets('tapping the row opens the set\'s parts', (tester) async {
+      await pump(tester);
+      await tester.tap(find.text('Millennium Falcon'));
+      await tester.pumpAndSettle();
+      expect(find.text('Parts of 75192-1'), findsOneWidget);
+    });
+
+    testWidgets('the switch still toggles counting without opening the set', (tester) async {
+      await pump(tester);
+      await tester.tap(inRow(find.byType(Switch)));
+      await tester.pump();
+      expect(find.text('Not counted in inventory'), findsOneWidget);
+      expect(find.textContaining('Parts of'), findsNothing);
+    });
+
+    testWidgets('the alternate builds button still opens its sheet without opening the set', (tester) async {
+      await pump(tester);
+      await tester.tap(inRow(find.byTooltip('Alternate builds')));
+      await tester.pump();
+      expect(find.byType(AlternateBuildsModal), findsOneWidget);
+      expect(find.textContaining('Parts of'), findsNothing);
     });
   });
 }

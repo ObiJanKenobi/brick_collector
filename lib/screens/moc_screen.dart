@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:brick_collector/common_libs.dart';
-import 'package:brick_collector/model/CollectablePartGroup.dart';
+import 'package:brick_collector/logic/part_sort.dart';
 import 'package:brick_collector/notifications/save_moc_notification.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/ui/modals/add_part_modal.dart';
@@ -272,19 +272,9 @@ class MocScreenState extends State<MocScreen> {
         ? moc.parts!
         : moc.parts!.where((p) => p.color != null && _colorFilter.contains(p.color)).toList();
     final groups = appLogic.groupParts(source);
-    final sortedParts = groups.values.sorted((a, b) {
-      if (moc.sort == PartSort.nameAsc || moc.sort == PartSort.nameDesc) {
-        return moc.sort == PartSort.nameAsc ? a.partName.compareTo(b.partName) : b.partName.compareTo(a.partName);
-      }
-
-      if (moc.sort == PartSort.quantityAsc || moc.sort == PartSort.quantityDesc) {
-        return moc.sort == PartSort.quantityAsc ? a.quantity.compareTo(b.quantity) : b.quantity.compareTo(a.quantity);
-      }
-
-      return moc.sort == PartSort.collectedAsc
-          ? a.collectedCount.compareTo(b.collectedCount)
-          : b.collectedCount.compareTo(a.collectedCount);
-    }).where((element) => moc.hideComplete ? element.collectedCount != element.quantity : true)
+    final sortedParts = groups.values
+        .sorted((a, b) => comparePartGroups(a, b, moc.sort))
+        .where((element) => moc.hideComplete ? element.collectedCount != element.quantity : true)
         // Keep a group only if at least one of its (colour-filtered) parts is
         // still missing from inventory. Skipped until counts have loaded.
         .where((group) => !(_missingOnly && _ownedLoaded) || group.parts.any(_isMissing))
@@ -384,7 +374,7 @@ class MocScreenState extends State<MocScreen> {
     for (final pn in partNums) {
       final items = await dbLogic.findItemsForPart(pn);
       for (final it in items) {
-        final key = '${it.partNum}_${it.colorId}';
+        final key = CollectablePart.keyFor(it.partNum, it.colorId);
         map[key] = (map[key] ?? 0) + it.quantity;
       }
     }
@@ -398,7 +388,7 @@ class MocScreenState extends State<MocScreen> {
   /// A part is "missing" when the inventory can't cover what's still needed.
   bool _isMissing(CollectablePart part) {
     if (part.remaining <= 0) return false;
-    final owned = _ownedCounts['${part.part}_${part.color}'] ?? 0;
+    final owned = _ownedCounts[part.partColorKey] ?? 0;
     return owned < part.remaining;
   }
 
@@ -429,20 +419,7 @@ class MocScreenState extends State<MocScreen> {
   }
 
   void sortParts() async {
-    final result = await showConfirmationDialog<PartSort>(
-      context: context,
-      title: 'Select sort order',
-      message: 'How to sort the parts',
-      actions: PartSort.values
-          .map(
-            (e) => AlertDialogAction(
-              label: getLabel(e),
-              key: e,
-            ),
-          )
-          .toList(),
-      initialSelectedActionKey: moc.sort,
-    );
+    final result = await showPartSortDialog(context, moc.sort);
     if (result == null) return;
 
     moc.sort = result;

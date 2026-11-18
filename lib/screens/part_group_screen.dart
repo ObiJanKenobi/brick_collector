@@ -1,4 +1,5 @@
 import 'package:brick_collector/common_libs.dart';
+import 'package:brick_collector/logic/part_sort.dart';
 import 'package:brick_collector/model/CollectablePartGroup.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/notifications/save_moc_notification.dart';
@@ -20,7 +21,13 @@ class PartGroupScreen extends StatefulWidget {
   final CollectablePartGroup group;
   final Moc moc;
 
-  const PartGroupScreen(this.group, this.moc, {super.key});
+  /// See [PartRouteData].
+  final VoidCallback? onSave;
+  final bool collectable;
+  final bool editable;
+
+  const PartGroupScreen(this.group, this.moc,
+      {this.onSave, this.collectable = true, this.editable = true, super.key});
 
   @override
   State<StatefulWidget> createState() => PartGroupScreenState();
@@ -37,7 +44,18 @@ class PartGroupScreenState extends State<PartGroupScreen> {
 
   Moc get moc => widget.moc;
 
-  String _inventoryKey(CollectablePart part) => "${part.part}_${part.color}";
+
+  bool get _collectable => widget.collectable;
+  bool get _editable => widget.editable;
+
+  void _save() {
+    final onSave = widget.onSave;
+    if (onSave != null) {
+      onSave();
+    } else {
+      mocLogic.saveMoc(moc);
+    }
+  }
 
   @override
   void initState() {
@@ -50,11 +68,11 @@ class PartGroupScreenState extends State<PartGroupScreen> {
       final partNum = part.part;
       final colorId = int.tryParse(part.color ?? '');
       if (partNum == null || colorId == null) {
-        return MapEntry(_inventoryKey(part), 0);
+        return MapEntry(part.partColorKey, 0);
       }
       final items = await dbLogic.findItemsForPart(partNum, colorId: colorId);
       final count = items.fold<int>(0, (sum, i) => sum + i.quantity);
-      return MapEntry(_inventoryKey(part), count);
+      return MapEntry(part.partColorKey, count);
     }));
 
     final partNum = group.partNum;
@@ -90,21 +108,12 @@ class PartGroupScreenState extends State<PartGroupScreen> {
 
     final double maxCardWidth = 350 + factor;
 
-    var sortedParts = group.parts.sorted((a, b) {
-      if (moc.groupSort == PartSort.nameAsc || moc.groupSort == PartSort.nameDesc) {
-        return moc.groupSort == PartSort.nameAsc ? a.colorName!.compareTo(b.colorName!) : b.colorName!.compareTo(a.colorName!);
-      }
+    var sortedParts = group.parts.sorted((a, b) => compareColors(a, b, moc.groupSort));
 
-      if (moc.groupSort == PartSort.quantityAsc || moc.groupSort == PartSort.quantityDesc) {
-        return moc.groupSort == PartSort.quantityAsc ? a.quantity.compareTo(b.quantity) : b.quantity.compareTo(a.quantity);
-      }
-      return moc.groupSort == PartSort.collectedAsc
-          ? a.collectedCount.compareTo(b.collectedCount)
-          : b.collectedCount.compareTo(a.collectedCount);
-    });
-
-    final sortedPartsCompleted = sortedParts.where((element) => moc.hideCompleteGroup ? element.collectedCount == element.quantity : false);
-    sortedParts = sortedParts.where((element) => moc.hideCompleteGroup ? element.collectedCount != element.quantity : true).toList();
+    // Hiding completed colours only means something where they can be collected.
+    final hideComplete = _collectable && moc.hideCompleteGroup;
+    final sortedPartsCompleted = sortedParts.where((element) => hideComplete ? element.collectedCount == element.quantity : false);
+    sortedParts = sortedParts.where((element) => hideComplete ? element.collectedCount != element.quantity : true).toList();
 
     final slivers = <Widget>[
       SliverGrid(
@@ -123,7 +132,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
       )
     ];
 
-    if (moc.hideCompleteGroup && sortedPartsCompleted.isNotEmpty) {
+    if (hideComplete && sortedPartsCompleted.isNotEmpty) {
       slivers.add(SliverToBoxAdapter(
           child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -215,7 +224,8 @@ class PartGroupScreenState extends State<PartGroupScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text("${group.collectedCount} / ${group.quantity}", style: Theme.of(context).textTheme.titleLarge),
+                Text(_collectable ? "${group.collectedCount} / ${group.quantity}" : "${group.quantity} total",
+                    style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 4),
                 GestureDetector(
                   onTap: () async {
@@ -254,17 +264,20 @@ class PartGroupScreenState extends State<PartGroupScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(onPressed: sortParts, icon: const Icon(Icons.sort)),
-            IconButton(
-                onPressed: showSettings,
-                icon: Icon(moc.hideCompleteGroup ? Icons.disabled_visible : Icons.remove_red_eye)),
-            IconButton(
-                onPressed: _addColor,
-                icon: const Icon(Icons.add_box_outlined),
-                tooltip: 'Add colour'),
+            if (_collectable)
+              IconButton(
+                  onPressed: showSettings,
+                  icon: Icon(moc.hideCompleteGroup ? Icons.disabled_visible : Icons.remove_red_eye)),
+            if (_editable)
+              IconButton(
+                  onPressed: _addColor,
+                  icon: const Icon(Icons.add_box_outlined),
+                  tooltip: 'Add colour'),
             const Spacer(),
-            IconButton(
-                onPressed: () { handleDeleteGroup(group.partNum); },
-                icon: const Icon(Icons.delete))
+            if (_editable)
+              IconButton(
+                  onPressed: () { handleDeleteGroup(group.partNum); },
+                  icon: const Icon(Icons.delete))
           ],
         ),
       ),
@@ -280,9 +293,10 @@ class PartGroupScreenState extends State<PartGroupScreen> {
           key: ValueKey(part.color),
 
           // The start action pane is the one at the left or the top side.
-          startActionPane: ActionPane(
+          startActionPane: !_editable && !_collectable ? null : ActionPane(
             motion: const DrawerMotion(),
             children: [
+              if (_editable)
               SlidableAction(
                 onPressed: (ctx) {
                   _showEditQuantityModal(part);
@@ -292,6 +306,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
                 icon: Icons.edit,
                 label: 'Edit',
               ),
+              if (_collectable)
               SlidableAction(
                 onPressed: (BuildContext context) {
                   handleCollected(part);
@@ -305,7 +320,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
           ),
 
           // The end action pane is the one at the right or the bottom side.
-          endActionPane: ActionPane(
+          endActionPane: !_editable ? null : ActionPane(
             motion: const DrawerMotion(),
             children: [
               SlidableAction(
@@ -326,7 +341,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
               onTap: () {
                 if (moc.shoppingMode) {
                   context.push(ScreenPaths.partSummary(part.part!), extra: part);
-                } else {
+                } else if (_collectable) {
                   _showCollectModal(part);
                 }
               },
@@ -343,9 +358,10 @@ class PartGroupScreenState extends State<PartGroupScreen> {
               ),
               title: Text("${part.colorName}"),
               subtitle: Text(
-                _inventoryCounts.containsKey(_inventoryKey(part))
-                    ? "${part.collectedCount} / ${part.quantity} (${_inventoryCounts[_inventoryKey(part)]})"
-                    : "${part.collectedCount} / ${part.quantity}",
+                [
+                  _collectable ? "${part.collectedCount} / ${part.quantity}" : "${part.quantity}",
+                  if (_inventoryCounts.containsKey(part.partColorKey)) "(${_inventoryCounts[part.partColorKey]})",
+                ].join(' '),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               trailing: (moc.shoppingMode && part.bricklinkId != null && part.bricklinkId!.isNotEmpty)
@@ -361,29 +377,16 @@ class PartGroupScreenState extends State<PartGroupScreen> {
 
   void showSettings() {
     moc.hideCompleteGroup = !moc.hideCompleteGroup;
-    mocLogic.saveMoc(moc);
+    _save();
     setState(() {});
   }
 
   void sortParts() async {
-    final result = await showConfirmationDialog<PartSort>(
-      context: context,
-      title: 'Select sort order',
-      message: 'How to sort the parts',
-      actions: PartSort.values
-          .map(
-            (e) => AlertDialogAction(
-              label: getLabel(e),
-              key: e,
-            ),
-          )
-          .toList(),
-      initialSelectedActionKey: moc.groupSort,
-    );
+    final result = await showPartSortDialog(context, moc.groupSort);
     if (result == null) return;
 
     moc.groupSort = result;
-    mocLogic.saveMoc(moc);
+    _save();
     setState(() {});
   }
 
@@ -394,7 +397,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
           return CollectModal(part);
         });
 
-    mocLogic.saveMoc(moc);
+    _save();
     setState(() {});
   }
 
@@ -422,7 +425,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
         group.parts.add(p);
       }
     }
-    mocLogic.saveMoc(moc);
+    _save();
     if (!mounted) return;
     _loadInventoryCounts();
     setState(() {});
@@ -437,7 +440,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
         });
 
     if (saved == true) {
-      mocLogic.saveMoc(moc);
+      _save();
       setState(() {});
     }
   }
@@ -476,7 +479,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
     // detail screen.
     moc.parts?.removeWhere((p) => p.part == partNum);
     group.parts.clear();
-    mocLogic.saveMoc(moc);
+    _save();
     if (!mounted) return;
     context.pop();
   }
@@ -484,7 +487,7 @@ class PartGroupScreenState extends State<PartGroupScreen> {
   void handleCollected(CollectablePart part) {
     part.collectedCount = part.quantity;
 
-    mocLogic.saveMoc(moc);
+    _save();
     setState(() {});
   }
 

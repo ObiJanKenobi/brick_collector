@@ -210,7 +210,7 @@ class CollectionSyncService {
             ..rgb = p.color.rgb
             ..imgUrl = p.part.imgUrl
             ..quantity = p.quantity * userSet.quantity
-            ..isSpare = false;
+            ..isSpare = p.isSpare;
         })
         .toList();
     await dbLogic.replaceSourceItems(CachedSourceType.set, userSet.set.setNum, items);

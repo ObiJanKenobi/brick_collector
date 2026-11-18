@@ -181,7 +181,7 @@ class AppLogic {
     final byKey = <String, CollectablePart>{};
     final deduped = <CollectablePart>[];
     for (final part in parts) {
-      final key = '${part.part}_${part.color}';
+      final key = part.partColorKey;
       final existing = byKey[key];
       if (existing == null) {
         byKey[key] = part;

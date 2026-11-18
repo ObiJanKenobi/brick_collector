@@ -1,3 +1,4 @@
+import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/common_libs.dart';
 import 'package:brick_collector/model/cached_inventory_item.dart';
 
@@ -31,7 +32,10 @@ class PartImageResolver {
       debugPrint('[PartImageResolver] $partNum: needed=[$needsStr]');
     }
 
-    final items = await dbLogic.findItemsForPart(partNum);
+    // Excluded sources too: they don't count toward inventory, but their image
+    // urls are as good as any. Without them every part of an excluded set
+    // missed the cache and fell back to one API call per part and colour.
+    final items = await dbLogic.findItemsForPart(partNum, includeExcluded: true);
     final byColor = <int, List<CachedInventoryItem>>{};
     for (final i in items) {
       byColor.putIfAbsent(i.colorId, () => []).add(i);
@@ -64,7 +68,7 @@ class PartImageResolver {
   static final Map<String, String?> _apiCache = {};
   static final Map<String, Future<String?>> _apiInFlight = {};
 
-  static String _apiKey(String partNum, int colorId) => '${partNum}_$colorId';
+  static String _apiKey(String partNum, int colorId) => CollectablePart.keyFor(partNum, colorId);
 
   /// Last-resort API lookup for the real CDN url (handles parts with no LDraw render,
   /// which use `parts/elements/{element_id}.jpg` instead of `parts/ldraw/…`).

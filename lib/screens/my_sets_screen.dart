@@ -254,73 +254,80 @@ class MySetsScreenState extends State<MySetsScreen> {
       // animation, image) with its set.
       key: ValueKey(set.id),
       margin: const EdgeInsets.only(bottom: 6),
-      child: Opacity(
-        opacity: excluded ? 0.5 : 1.0,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 104,
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(8),
-                      child: (set.imgUrl != null && set.imgUrl!.isNotEmpty)
-                          ? CachedNetworkImage(
-                              imageUrl: set.imgUrl!,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
-                              memCacheWidth: decodeWidth,
-                              errorWidget: (_, __, ___) =>
-                                  const Icon(Icons.widgets_outlined, color: AppColors.textSecondary),
-                            )
-                          : const Icon(Icons.widgets_outlined, color: AppColors.textSecondary),
+      clipBehavior: Clip.antiAlias,
+      // The whole row opens the set's parts; the switch and the alternate
+      // builds button handle their own taps on top of it.
+      child: InkWell(
+        key: Key('mySetsRow-${set.externalId}'),
+        onTap: () => context.push(ScreenPaths.setPage(set.externalId), extra: set),
+        child: Opacity(
+          opacity: excluded ? 0.5 : 1.0,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 104,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        color: Colors.white,
+                        padding: const EdgeInsets.all(8),
+                        child: (set.imgUrl != null && set.imgUrl!.isNotEmpty)
+                            ? CachedNetworkImage(
+                                imageUrl: set.imgUrl!,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.high,
+                                memCacheWidth: decodeWidth,
+                                errorWidget: (_, __, ___) =>
+                                    const Icon(Icons.widgets_outlined, color: AppColors.textSecondary),
+                              )
+                            : const Icon(Icons.widgets_outlined, color: AppColors.textSecondary),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      set.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(meta, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                    if (excluded)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 2),
-                        child: Text(
-                          'Not counted in inventory',
-                          style: TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.highlightColor),
-                        ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        set.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(meta, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      if (excluded)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Text(
+                            'Not counted in inventory',
+                            style:
+                                TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.highlightColor),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.lightbulb_outline),
-                tooltip: 'Alternate builds',
-                onPressed: () => _showAlternates(set),
-              ),
-              Switch(
-                value: !excluded,
-                activeThumbColor: AppColors.highlightColor,
-                onChanged: (counted) => _toggleExcluded(set, !counted),
-              ),
-            ],
+                IconButton(
+                  icon: const Icon(Icons.lightbulb_outline),
+                  tooltip: 'Alternate builds',
+                  onPressed: () => _showAlternates(set),
+                ),
+                Switch(
+                  value: !excluded,
+                  activeThumbColor: AppColors.highlightColor,
+                  onChanged: (counted) => _toggleExcluded(set, !counted),
+                ),
+              ],
+            ),
           ),
         ),
       ),

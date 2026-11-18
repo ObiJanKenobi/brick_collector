@@ -5,6 +5,7 @@ import 'package:brick_collector/model/cached_inventory_item.dart';
 import 'package:brick_collector/model/cached_source.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/model/filter_preset.dart';
+import 'package:brick_collector/model/set_sale.dart';
 import 'package:brick_collector/services/group_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
@@ -171,6 +172,17 @@ class DbLogic {
         .findFirst();
   }
 
+  /// Every cached item of one source, whether or not the source is excluded
+  /// from inventory. Backs the set parts screen.
+  Future<List<CachedInventoryItem>> getSourceItems(CachedSourceType type, String externalId) {
+    return _isar.cachedInventoryItems
+        .filter()
+        .sourceTypeEqualTo(type)
+        .and()
+        .sourceExternalIdEqualTo(externalId)
+        .findAll();
+  }
+
   /// All cached sources of [type], sorted by name. Backs the "My Sets" screen.
   Future<List<CachedSource>> getSourcesByType(CachedSourceType type) async {
     return _isar.cachedSources.filter().typeEqualTo(type).sortByName().findAll();
@@ -235,7 +247,7 @@ class DbLogic {
     for (final it in rows) {
       if (excluded.contains(_itemSourceKey(it))) continue;
 
-      final key = '${it.partNum}_${it.colorId}';
+      final key = CollectablePart.keyFor(it.partNum, it.colorId);
       final existing = aggregated[key];
       if (existing == null) {
         aggregated[key] = AggregatedInventoryRow(
@@ -405,6 +417,29 @@ class DbLogic {
     final id = moc.firestoreId;
     if (id == null) return;
     _writeInBackground(() => _mocsRef.doc(id).delete(), 'Could not delete "${moc.name}"');
+  }
+
+  // --- Firestore (set sales) ---
+
+  /// One doc per set put up for sale ("Verkauf"), keyed by set number.
+  CollectionReference get _setSalesRef => FirebaseFirestore.instance
+      .collection('groups')
+      .doc(GroupService.instance.groupCode)
+      .collection('setSales');
+
+  Stream<SetSale> watchSetSale(String setNum) {
+    return _setSalesRef
+        .doc(setNum)
+        .snapshots()
+        .map((doc) => SetSale.fromJson(doc.data() as Map<String, dynamic>?));
+  }
+
+  /// Saves [sale] in the background (see [_writeInBackground]).
+  void saveSetSale(String setNum, SetSale sale) {
+    _writeInBackground(
+      () => _setSalesRef.doc(setNum).set(sale.toJson()),
+      'Could not save the Verkauf progress of $setNum',
+    );
   }
 
   // --- Firestore (FilterPresets) ---

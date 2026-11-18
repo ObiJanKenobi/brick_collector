@@ -14,10 +14,18 @@ class PartGroupCard extends StatefulWidget {
   final Moc? moc;
   final bool positiveQuantity;
 
+  /// Passed on to the part screen; see [PartRouteData].
+  final VoidCallback? onSave;
+  final bool collectable;
+  final bool editable;
+
   const PartGroupCard(
     this.group,
     this.moc, {
     this.positiveQuantity = false,
+    this.onSave,
+    this.collectable = true,
+    this.editable = true,
     super.key,
   });
 
@@ -54,8 +62,6 @@ class PartGroupCardState extends State<PartGroupCard> {
   final Map<String, int> _inventoryCounts = {};
   bool _inventoryLoading = false;
 
-  String _inventoryKey(CollectablePart part) => "${part.part}_${part.color}";
-
   @override
   void initState() {
     super.initState();
@@ -88,11 +94,11 @@ class PartGroupCardState extends State<PartGroupCard> {
       final partNum = part.part;
       final colorId = int.tryParse(part.color ?? '');
       if (partNum == null || colorId == null) {
-        return MapEntry(_inventoryKey(part), 0);
+        return MapEntry(part.partColorKey, 0);
       }
       final items = await dbLogic.findItemsForPart(partNum, colorId: colorId);
       final count = items.fold<int>(0, (sum, i) => sum + i.quantity);
-      return MapEntry(_inventoryKey(part), count);
+      return MapEntry(part.partColorKey, count);
     }));
 
     if (!mounted) {
@@ -184,7 +190,7 @@ class PartGroupCardState extends State<PartGroupCard> {
         onTap: () {
           final m = moc;
           if (m != null) {
-            context.push(ScreenPaths.partGroup(group.partNum), extra: PartRouteData(group, m));
+            _openPartScreen(m);
           } else if (group.parts.isNotEmpty) {
             // Tapping the card header opens the part summary scoped to exactly
             // the colours visible on this card (i.e. the preset's filter). With
@@ -271,7 +277,7 @@ class PartGroupCardState extends State<PartGroupCard> {
   /// Shows how many of this part/color the user already owns (from the local
   /// inventory cache). Green once the owned quantity covers what's still needed.
   Widget _ownedBadge(CollectablePart part) {
-    final key = _inventoryKey(part);
+    final key = part.partColorKey;
     final owned = _inventoryCounts[key];
     if (owned == null) {
       return const SizedBox(
@@ -386,12 +392,15 @@ class PartGroupCardState extends State<PartGroupCard> {
     // matches the part detail screen's "by colour" view. Tapping opens the part
     // summary for this colour.
     if (_positive) {
+      final m = moc;
       return ColorCountChip(
         quantity: part.quantity,
         rgb: part.rgb,
         colorName: part.colorName,
         anyColor: anyColor,
-        onTap: () => context.push(ScreenPaths.partSummary(part.part ?? ''), extra: part),
+        onTap: () => m != null
+            ? _openPartScreen(m)
+            : context.push(ScreenPaths.partSummary(part.part ?? ''), extra: part),
       );
     }
 
@@ -405,8 +414,10 @@ class PartGroupCardState extends State<PartGroupCard> {
       onTap: () {
         if (_shopping) {
           context.push(ScreenPaths.partSummary(part.part ?? ''), extra: part);
-        } else {
+        } else if (widget.collectable) {
           _showCollectModal(part);
+        } else if (moc != null) {
+          _openPartScreen(moc!);
         }
       },
       child: Padding(
@@ -461,6 +472,14 @@ class PartGroupCardState extends State<PartGroupCard> {
           ],
         ),
       ),
+    );
+  }
+
+  void _openPartScreen(Moc m) {
+    context.push(
+      ScreenPaths.partGroup(group.partNum),
+      extra: PartRouteData(group, m,
+          onSave: widget.onSave, collectable: widget.collectable, editable: widget.editable),
     );
   }
 

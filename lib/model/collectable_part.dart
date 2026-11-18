@@ -23,6 +23,12 @@ class CollectablePart extends BrickPart {
 
   bool get completed => quantity == collectedCount;
 
+  /// Identifies this part in this colour, e.g. "3001_4". Inventory rows use
+  /// the same key via [keyFor], so the two can be matched.
+  String get partColorKey => keyFor(part, color);
+
+  static String keyFor(String? partNum, Object? colorId) => '${partNum}_$colorId';
+
   factory CollectablePart.fromJson(Map<String, dynamic> json) => _$CollectablePartFromJson(json);
 
   @override

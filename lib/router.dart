@@ -10,6 +10,8 @@ import 'package:brick_collector/screens/parts_filter_screen.dart';
 import 'package:brick_collector/screens/piece_counter_screen.dart';
 import 'package:brick_collector/screens/preset_list_screen.dart';
 import 'package:brick_collector/screens/preset_screen.dart';
+import 'package:brick_collector/screens/set_screen.dart';
+import 'package:brick_collector/model/cached_source.dart';
 import 'package:brick_collector/model/collectable_part.dart';
 import 'package:brick_collector/services/group_service.dart';
 import 'package:brick_collector/ui/app_colors.dart';
@@ -42,13 +44,25 @@ class ScreenPaths {
   static String partFilterEditPage(String id) => '/filter/edit/$id';
 
   static String presetPage(String id) => '/preset/$id';
+
+  static String setPage(String setNum) => '/set/$setNum';
 }
 
 class PartRouteData {
   final CollectablePartGroup group;
   final Moc moc;
 
-  PartRouteData(this.group, this.moc);
+  /// Persists changes made on the part screen; null saves [moc] as a MOC.
+  final VoidCallback? onSave;
+
+  /// Whether colours can be collected (a set outside Verkauf can't).
+  final bool collectable;
+
+  /// Whether colours can be added, edited and deleted. Off for a set, whose
+  /// parts come from Rebrickable.
+  final bool editable;
+
+  PartRouteData(this.group, this.moc, {this.onSave, this.collectable = true, this.editable = true});
 }
 
 /// Routing table, matches string paths to UI Screens, optionally parses params from the paths
@@ -64,7 +78,8 @@ final appRouter = GoRouter(
     AppRoute(ScreenPaths.pieceCounter, (_) => const PieceCounterScreen()),
     AppRoute('/partgroup/:partNum', (s) {
       final data = s.extra! as PartRouteData;
-      return PartGroupScreen(data.group, data.moc);
+      return PartGroupScreen(data.group, data.moc,
+          onSave: data.onSave, collectable: data.collectable, editable: data.editable);
     }, useFade: true),
     AppRoute('/partsummary/:partNum', (s) {
       final part = s.extra! as CollectablePart;
@@ -98,6 +113,10 @@ final appRouter = GoRouter(
     AppRoute('/preset/:id', (s) {
       final id = s.pathParameters["id"]!;
       return PresetScreen(id);
+    }, useFade: true),
+    AppRoute('/set/:setNum', (s) {
+      // extra only gives the name a head start; the screen loads by number.
+      return SetScreen(s.pathParameters['setNum']!, initial: s.extra as CachedSource?);
     }, useFade: true),
     AppRoute(ScreenPaths.detail, (s) {
       final moc = s.extra! as Moc;
